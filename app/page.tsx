@@ -36,6 +36,9 @@ type SearchResult = {
   "life-span"?: { begin?: string; end?: string; ended?: boolean };
 };
 
+type Theme = "light" | "dark";
+type AtlasMap = MapLibreMap & { __atlasNodes?: AtlasNode[]; __atlasAnchor?: [number, number]; __theme?: Theme };
+
 const typeMeta: Record<EntityType, { label: string; color: string }> = {
   artist: { label: "Artists", color: "#ff6b4a" },
   place: { label: "Places", color: "#ffd166" },
@@ -166,6 +169,7 @@ export default function Home() {
   const [yearRange, setYearRange] = useState<[number, number]>([1940, 2026]);
   const [playing, setPlaying] = useState(false);
   const [mobileFilters, setMobileFilters] = useState(false);
+  const [theme, setTheme] = useState<Theme>("light");
 
   const visibleNodes = useMemo(() => (atlas?.nodes ?? []).filter((node) => {
     const start = node.year ?? 1940;
@@ -300,24 +304,31 @@ export default function Home() {
       if (cancelled || !mapContainer.current || mapRef.current) return;
       const map = new maplibregl.Map({
         container: mapContainer.current,
-        style: "https://tiles.openfreemap.org/styles/dark",
+        style: "https://tiles.openfreemap.org/styles/bright",
         center: [5, 24], zoom: 1.55, minZoom: 1.2, pitch: 18, attributionControl: false,
       });
+      (map as AtlasMap).__theme = "light";
       map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "bottom-right");
       map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
-      map.on("load", () => {
+      map.on("style.load", () => {
+        const atlasMap = map as AtlasMap;
+        const nodes = atlasMap.__atlasNodes ?? [];
+        const features = nodes.map((node) => ({ type: "Feature" as const, properties: { id: node.id, type: node.type }, geometry: { type: "Point" as const, coordinates: node.coordinates } }));
+        const lines = atlasMap.__atlasAnchor ? nodes.slice(1).map((node) => ({ type: "Feature" as const, properties: {}, geometry: { type: "LineString" as const, coordinates: [atlasMap.__atlasAnchor as [number, number], node.coordinates] } })) : [];
         map.addSource("atlas-lines", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         map.addSource("atlas-points", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         map.addLayer({ id: "atlas-lines", type: "line", source: "atlas-lines", paint: { "line-color": "#ff6b4a", "line-width": 1.2, "line-opacity": 0.52, "line-dasharray": [2, 2] } });
         map.addLayer({ id: "atlas-halo", type: "circle", source: "atlas-points", paint: { "circle-radius": 13, "circle-color": ["match", ["get", "type"], "artist", "#ff6b4a", "place", "#ffd166", "label", "#9c8cff", "release", "#58d6b3", "#6bb7ff"], "circle-opacity": 0.12 } });
-        map.addLayer({ id: "atlas-points", type: "circle", source: "atlas-points", paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 1, 4, 6, 8], "circle-color": ["match", ["get", "type"], "artist", "#ff6b4a", "place", "#ffd166", "label", "#9c8cff", "release", "#58d6b3", "#6bb7ff"], "circle-stroke-color": "#131816", "circle-stroke-width": 2 } });
-        map.on("mouseenter", "atlas-points", () => { map.getCanvas().style.cursor = "pointer"; });
-        map.on("mouseleave", "atlas-points", () => { map.getCanvas().style.cursor = ""; });
-        map.on("click", "atlas-points", (event) => {
-          const id = event.features?.[0]?.properties?.id;
-          const node = (mapRef.current as MapLibreMap & { __atlasNodes?: AtlasNode[] }).__atlasNodes?.find((item) => item.id === id);
-          if (node) setDetail(node);
-        });
+        map.addLayer({ id: "atlas-points", type: "circle", source: "atlas-points", paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 1, 4, 6, 8], "circle-color": ["match", ["get", "type"], "artist", "#ff6b4a", "place", "#ffd166", "label", "#9c8cff", "release", "#58d6b3", "#6bb7ff"], "circle-stroke-color": atlasMap.__theme === "light" ? "#f4f0e7" : "#131816", "circle-stroke-width": 2 } });
+        (map.getSource("atlas-points") as { setData: (data: object) => void }).setData({ type: "FeatureCollection", features });
+        (map.getSource("atlas-lines") as { setData: (data: object) => void }).setData({ type: "FeatureCollection", features: lines });
+      });
+      map.on("mouseenter", "atlas-points", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "atlas-points", () => { map.getCanvas().style.cursor = ""; });
+      map.on("click", "atlas-points", (event) => {
+        const id = event.features?.[0]?.properties?.id;
+        const node = (mapRef.current as AtlasMap).__atlasNodes?.find((item) => item.id === id);
+        if (node) setDetail(node);
       });
       mapRef.current = map;
     });
@@ -325,10 +336,11 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const map = mapRef.current as (MapLibreMap & { __atlasNodes?: AtlasNode[] }) | null;
+    const map = mapRef.current as AtlasMap | null;
     if (!map) return;
     const update = () => {
       map.__atlasNodes = visibleNodes;
+      map.__atlasAnchor = atlas?.nodes[0]?.coordinates;
       const features = visibleNodes.map((node) => ({ type: "Feature" as const, properties: { id: node.id, type: node.type }, geometry: { type: "Point" as const, coordinates: node.coordinates } }));
       const anchor = atlas?.nodes[0]?.coordinates;
       const lines = anchor ? visibleNodes.slice(1).map((node) => ({ type: "Feature" as const, properties: {}, geometry: { type: "LineString" as const, coordinates: [anchor, node.coordinates] } })) : [];
@@ -336,7 +348,7 @@ export default function Home() {
       (map.getSource("atlas-lines") as { setData: (data: object) => void } | undefined)?.setData({ type: "FeatureCollection", features: lines });
       if (atlas) map.flyTo({ center: atlas.center, zoom: atlas.nodes.length > 1 ? 4.1 : 2.8, duration: 1800, essential: true });
     };
-    if (map.isStyleLoaded()) update(); else map.once("load", update);
+    if (map.isStyleLoaded()) update(); else map.once("style.load", update);
   }, [atlas, visibleNodes]);
 
   useEffect(() => {
@@ -358,8 +370,17 @@ export default function Home() {
     if (value.trim().length < 2) { setResults([]); setSearching(false); setSearchError(false); }
   };
 
+  const switchTheme = (nextTheme: Theme) => {
+    setTheme(nextTheme);
+    const map = mapRef.current as AtlasMap | null;
+    if (map) {
+      map.__theme = nextTheme;
+      map.setStyle(`https://tiles.openfreemap.org/styles/${nextTheme === "light" ? "bright" : "dark"}`);
+    }
+  };
+
   return (
-    <main className="atlas-shell">
+    <main className={`atlas-shell ${theme}`}>
       <div ref={mapContainer} className="map" aria-label="Interactive world map of musical connections" />
       <div className="map-vignette" />
 
@@ -383,6 +404,10 @@ export default function Home() {
               <a href="https://musicbrainz.org" target="_blank" rel="noreferrer">Data from MusicBrainz ↗</a>
             </div>
           )}
+        </div>
+        <div className="theme-toggle" role="group" aria-label="Color theme">
+          <button className={theme === "light" ? "active" : ""} onClick={() => switchTheme("light")} aria-pressed={theme === "light"} aria-label="Use light theme"><span aria-hidden="true">☀</span><span className="theme-label">Light</span></button>
+          <button className={theme === "dark" ? "active" : ""} onClick={() => switchTheme("dark")} aria-pressed={theme === "dark"} aria-label="Use dark theme"><span aria-hidden="true">◐</span><span className="theme-label">Dark</span></button>
         </div>
         <button className="filter-mobile" onClick={() => setMobileFilters(!mobileFilters)} aria-expanded={mobileFilters}>Layers <span>☷</span></button>
       </header>
