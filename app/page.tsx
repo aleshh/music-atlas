@@ -137,21 +137,24 @@ function yearsFor(result: SearchResult) {
   return `${span.begin.slice(0, 4)}—${span.end?.slice(0, 4) || (span.ended ? "?" : "present")}`;
 }
 
-function seedOffset(seed: string, amount: number) {
-  let value = 0;
-  for (const char of seed) value = (value * 31 + char.charCodeAt(0)) % 1000;
-  return ((value / 999) - 0.5) * amount;
-}
+type RelatedEntity = { id: string; name: string; country?: string; area?: { "iso-3166-1-codes"?: string[] } };
 
-function entityNode(id: string, name: string, type: EntityType, center: [number, number], index: number, description: string, sourceUrl: string): AtlasNode {
+function countryNode(entity: RelatedEntity, type: "artist" | "label", description: string): AtlasNode | null {
+  const countryCode = entity.country || entity.area?.["iso-3166-1-codes"]?.[0];
+  const coordinates = countryCode ? countryCenters[countryCode] : undefined;
+  if (!countryCode || !coordinates) return null;
+  const countryName = new Intl.DisplayNames(["en"], { type: "region" }).of(countryCode) || countryCode;
+
   return {
-    id, name, type,
-    coordinates: [center[0] + seedOffset(id, 12 + index), center[1] + seedOffset(`${id}-lat`, 5 + index / 2)],
-    location: "Location inferred from artist area",
+    id: entity.id,
+    name: entity.name,
+    type,
+    coordinates,
+    location: `${countryName} (country-level location)`,
     description,
-    precision: "approximate",
+    precision: "country",
     source: "MusicBrainz",
-    sourceUrl,
+    sourceUrl: `https://musicbrainz.org/${type}/${entity.id}`,
   };
 }
 
@@ -194,7 +197,8 @@ export default function Home() {
       if (!artistResponse.ok) throw new Error("Artist lookup failed");
       const artist = await artistResponse.json();
       const country = artist.country || artist.area?.["iso-3166-1-codes"]?.[0] || "";
-      let center = countryCenters[country] || countryCenters.US;
+      let center = countryCenters[country] || [0, 20] as [number, number];
+      let hasGeographicLocation = Boolean(countryCenters[country]);
       let locationSource: AtlasNode["source"] = "MusicBrainz";
       let locationName = artist.area?.name || artist["begin-area"]?.name || artist.country || "Approximate location";
 
@@ -209,6 +213,7 @@ export default function Home() {
           if (coordinate) {
             center = [coordinate.longitude, coordinate.latitude];
             locationSource = "Wikidata";
+            hasGeographicLocation = true;
           }
           const placeQid = entity?.claims?.P19?.[0]?.mainsnak?.datavalue?.value?.id;
           if (placeQid && !coordinate) {
@@ -219,12 +224,13 @@ export default function Home() {
               center = [placeCoordinate.longitude, placeCoordinate.latitude];
               locationName = place.labels?.en?.value || locationName;
               locationSource = "Wikidata";
+              hasGeographicLocation = true;
             }
           }
         } catch { /* MusicBrainz area remains a valid fallback. */ }
       }
 
-      const nodes: AtlasNode[] = [{
+      const primaryNode: AtlasNode = {
         id: artist.id, name: artist.name, type: "artist", coordinates: center,
         year: Number(artist["life-span"]?.begin?.slice(0, 4)) || undefined,
         endYear: Number(artist["life-span"]?.end?.slice(0, 4)) || undefined,
@@ -233,32 +239,22 @@ export default function Home() {
         precision: locationSource === "Wikidata" ? "city" : country ? "country" : "approximate",
         source: locationSource,
         sourceUrl: `https://musicbrainz.org/artist/${artist.id}`,
-      }];
+      };
+      const nodes: AtlasNode[] = hasGeographicLocation ? [primaryNode] : [];
 
-      (artist.relations || []).filter((relation: { artist?: unknown }) => relation.artist).slice(0, 7).forEach((relation: { artist: { id: string; name: string }; type?: string }, index: number) => {
-        nodes.push(entityNode(relation.artist.id, relation.artist.name, "artist", center, index, `${relation.type || "Artist"} relationship with ${artist.name}. Select this artist to explore further.`, `https://musicbrainz.org/artist/${relation.artist.id}`));
+      (artist.relations || []).filter((relation: { artist?: unknown }) => relation.artist).slice(0, 7).forEach((relation: { artist: RelatedEntity; type?: string }) => {
+        const node = countryNode(relation.artist, "artist", `${relation.type || "Artist"} relationship with ${artist.name}. Select this artist to explore further.`);
+        if (node) nodes.push(node);
       });
-      (artist.relations || []).filter((relation: { label?: unknown }) => relation.label).slice(0, 5).forEach((relation: { label: { id: string; name: string }; type?: string }, index: number) => {
-        nodes.push(entityNode(relation.label.id, relation.label.name, "label", center, index + 3, `${relation.type || "Label"} connection listed by MusicBrainz.`, `https://musicbrainz.org/label/${relation.label.id}`));
+      (artist.relations || []).filter((relation: { label?: unknown }) => relation.label).slice(0, 5).forEach((relation: { label: RelatedEntity; type?: string }) => {
+        const node = countryNode(relation.label, "label", `${relation.type || "Label"} connection listed by MusicBrainz.`);
+        if (node) nodes.push(node);
       });
 
       setAtlas({
         artist: { id: artist.id, name: artist.name, subtitle: artist.disambiguation || `${artist.type || "Artist"} from ${locationName}`, years: yearsFor(artist), country: artist.country || artist.area?.name || "Unknown area" },
         center, nodes,
       });
-      setLoadingStage("Loading selected releases…");
-
-      try {
-        const releaseResponse = await fetch(`https://musicbrainz.org/ws/2/release-group?artist=${artist.id}&limit=6&fmt=json`, { headers: { Accept: "application/json" } });
-        if (releaseResponse.ok) {
-          const releases = (await releaseResponse.json())["release-groups"] || [];
-          const releaseNodes = releases.map((release: { id: string; title: string; "first-release-date"?: string; "primary-type"?: string }, index: number) => ({
-            ...entityNode(release.id, release.title, "release", center, index + 5, `${release["primary-type"] || "Release"} by ${artist.name}. Artwork may be available from the Cover Art Archive.`, `https://musicbrainz.org/release-group/${release.id}`),
-            year: Number(release["first-release-date"]?.slice(0, 4)) || undefined,
-          }));
-          setAtlas((current) => current ? { ...current, nodes: [...current.nodes, ...releaseNodes] } : current);
-        }
-      } catch { /* Secondary data can fail independently. */ }
       setLoadingStage(null);
     } catch {
       setLoadingStage(null);
