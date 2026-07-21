@@ -38,6 +38,18 @@ type SearchResult = {
 
 type Theme = "light" | "dark";
 type AtlasMap = MapLibreMap & { __atlasNodes?: AtlasNode[]; __atlasAnchor?: [number, number]; __theme?: Theme };
+type ModalTab = "about" | "diagnostics";
+type DiagnosticState = "idle" | "running" | "pass" | "fail" | "not-used";
+type DiagnosticResult = {
+  id: string;
+  name: string;
+  provider: string;
+  endpoint: string;
+  status: DiagnosticState;
+  summary: string;
+  duration?: number;
+  detail?: string;
+};
 
 const typeMeta: Record<EntityType, { label: string; color: string }> = {
   artist: { label: "Artists", color: "#ff6b4a" },
@@ -131,6 +143,15 @@ const atlasData: Record<string, Atlas> = {
 
 const suggested = Object.values(atlasData).map((atlas) => atlas.artist);
 
+const initialDiagnostics: DiagnosticResult[] = [
+  { id: "mb-search", name: "Artist search", provider: "MusicBrainz", endpoint: "/ws/2/artist?query=artist:Autechre&fmt=json&limit=1", status: "idle", summary: "Checks search results and canonical artist IDs." },
+  { id: "mb-lookup", name: "Artist relationships", provider: "MusicBrainz", endpoint: "/ws/2/artist/{MBID}?inc=url-rels+artist-rels+label-rels&fmt=json", status: "idle", summary: "Checks artist identity, areas, dates, and relationship arrays." },
+  { id: "wikidata", name: "Geographic claims", provider: "Wikidata", endpoint: "/w/api.php?action=wbgetentities&ids=Q60&props=claims|labels", status: "idle", summary: "Checks entity labels and P625 coordinate claims." },
+  { id: "map", name: "Basemap style", provider: "OpenFreeMap", endpoint: "/styles/bright", status: "idle", summary: "Checks that the map style and its layer definitions are readable." },
+  { id: "curated", name: "Curated atlas", provider: "Bundled JSON", endpoint: "Local application bundle", status: "idle", summary: "Checks curated records and coordinate bounds without a network request." },
+  { id: "cover-art", name: "Release artwork", provider: "Cover Art Archive", endpoint: "No endpoint called", status: "not-used", summary: "Not currently requested by this prototype." },
+];
+
 function yearsFor(result: SearchResult) {
   const span = result["life-span"];
   if (!span?.begin) return "Dates unknown";
@@ -161,6 +182,7 @@ function countryNode(entity: RelatedEntity, type: "artist" | "label", descriptio
 export default function Home() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const modalCloseRef = useRef<HTMLButtonElement>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -173,6 +195,11 @@ export default function Home() {
   const [playing, setPlaying] = useState(false);
   const [mobileFilters, setMobileFilters] = useState(false);
   const [theme, setTheme] = useState<Theme>("light");
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [modalTab, setModalTab] = useState<ModalTab>("about");
+  const [diagnostics, setDiagnostics] = useState<DiagnosticResult[]>(initialDiagnostics);
+  const [diagnosticsRunning, setDiagnosticsRunning] = useState(false);
+  const [diagnosticsRanAt, setDiagnosticsRanAt] = useState<string | null>(null);
 
   const visibleNodes = useMemo(() => (atlas?.nodes ?? []).filter((node) => {
     const start = node.year ?? 1940;
@@ -355,6 +382,16 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [playing]);
 
+  useEffect(() => {
+    if (!aboutOpen) return;
+    modalCloseRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAboutOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [aboutOpen]);
+
   const toggleType = (type: EntityType) => setActiveTypes((current) => {
     const next = new Set(current);
     if (next.has(type)) next.delete(type); else next.add(type);
@@ -373,6 +410,84 @@ export default function Home() {
       map.__theme = nextTheme;
       map.setStyle(`https://tiles.openfreemap.org/styles/${nextTheme === "light" ? "bright" : "dark"}`);
     }
+  };
+
+  const updateDiagnostic = (result: DiagnosticResult) => {
+    setDiagnostics((current) => current.map((item) => item.id === result.id ? result : item));
+  };
+
+  const runJsonCheck = async (
+    id: string,
+    url: string,
+    validate: (data: Record<string, unknown>) => string,
+  ) => {
+    const template = initialDiagnostics.find((item) => item.id === id)!;
+    const started = performance.now();
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch(url, { signal: controller.signal, headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json() as Record<string, unknown>;
+      const detail = validate(data);
+      updateDiagnostic({ ...template, status: "pass", summary: "Valid response received.", duration: Math.round(performance.now() - started), detail });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown browser error";
+      updateDiagnostic({ ...template, status: "fail", summary: "Expected data was not available.", duration: Math.round(performance.now() - started), detail: message === "AbortError" ? "Request timed out after 8 seconds." : message });
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  };
+
+  const runDiagnostics = async () => {
+    if (diagnosticsRunning) return;
+    setDiagnosticsRunning(true);
+    setDiagnostics(initialDiagnostics.map((item) => item.status === "not-used" ? item : { ...item, status: "running", detail: undefined, duration: undefined }));
+
+    await runJsonCheck("mb-search", "https://musicbrainz.org/ws/2/artist?query=artist%3AAutechre&fmt=json&limit=1", (data) => {
+      const artists = data.artists as Array<{ id?: string; name?: string }> | undefined;
+      if (!artists?.[0]?.id || !artists[0].name) throw new Error("Response did not contain an artist name and MBID.");
+      return `${artists.length} result received; first match: ${artists[0].name} (${artists[0].id}).`;
+    });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 1100));
+    const diagnosticArtistId = atlas?.artist.id || "1b4dd0d8-99d6-4e7c-a7b6-866f30c5c67d";
+    await runJsonCheck("mb-lookup", `https://musicbrainz.org/ws/2/artist/${diagnosticArtistId}?inc=url-rels+artist-rels+label-rels&fmt=json`, (data) => {
+      if (!data.id || !data.name || !Array.isArray(data.relations)) throw new Error("Response was missing identity or relationship fields.");
+      return `${String(data.name)} returned with ${(data.relations as unknown[]).length} relationships.`;
+    });
+
+    await runJsonCheck("wikidata", "https://www.wikidata.org/w/api.php?action=wbgetentities&ids=Q60&props=claims%7Clabels&languages=en&origin=*&format=json", (data) => {
+      const entities = data.entities as Record<string, { labels?: { en?: { value?: string } }; claims?: { P625?: unknown[] } }> | undefined;
+      const entity = entities?.Q60;
+      if (!entity?.labels?.en?.value || !entity.claims?.P625?.length) throw new Error("Response was missing the label or P625 coordinates.");
+      return `${entity.labels.en.value} returned with a P625 coordinate claim.`;
+    });
+
+    await runJsonCheck("map", "https://tiles.openfreemap.org/styles/bright", (data) => {
+      const layers = data.layers as unknown[] | undefined;
+      if (!data.version || !Array.isArray(layers) || layers.length === 0) throw new Error("Response was not a valid MapLibre style document.");
+      return `Style specification v${String(data.version)} returned with ${layers.length} layers.`;
+    });
+
+    const curatedTemplate = initialDiagnostics.find((item) => item.id === "curated")!;
+    const curatedAtlases = Object.values(atlasData);
+    const curatedNodes = curatedAtlases.flatMap((item) => item.nodes);
+    const invalidCoordinates = curatedNodes.filter((node) => Math.abs(node.coordinates[0]) > 180 || Math.abs(node.coordinates[1]) > 90);
+    updateDiagnostic({
+      ...curatedTemplate,
+      status: curatedAtlases.length > 0 && invalidCoordinates.length === 0 ? "pass" : "fail",
+      summary: invalidCoordinates.length === 0 ? "Bundled records are internally valid." : "One or more bundled coordinates are invalid.",
+      duration: 0,
+      detail: `${curatedAtlases.length} artists and ${curatedNodes.length} mapped entities checked; ${invalidCoordinates.length} invalid coordinates.`,
+    });
+    setDiagnosticsRanAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    setDiagnosticsRunning(false);
+  };
+
+  const openAbout = (tab: ModalTab = "about") => {
+    setModalTab(tab);
+    setAboutOpen(true);
   };
 
   return (
@@ -401,9 +516,12 @@ export default function Home() {
             </div>
           )}
         </div>
-        <div className="theme-toggle" role="group" aria-label="Color theme">
-          <button className={theme === "light" ? "active" : ""} onClick={() => switchTheme("light")} aria-pressed={theme === "light"} aria-label="Use light theme"><span aria-hidden="true">☀</span><span className="theme-label">Light</span></button>
-          <button className={theme === "dark" ? "active" : ""} onClick={() => switchTheme("dark")} aria-pressed={theme === "dark"} aria-label="Use dark theme"><span aria-hidden="true">◐</span><span className="theme-label">Dark</span></button>
+        <div className="topbar-actions">
+          <button className="about-trigger" onClick={() => openAbout()} aria-label="About Music Atlas and its data"><span aria-hidden="true">i</span><span>About</span></button>
+          <div className="theme-toggle" role="group" aria-label="Color theme">
+            <button className={theme === "light" ? "active" : ""} onClick={() => switchTheme("light")} aria-pressed={theme === "light"} aria-label="Use light theme"><span aria-hidden="true">☀</span><span className="theme-label">Light</span></button>
+            <button className={theme === "dark" ? "active" : ""} onClick={() => switchTheme("dark")} aria-pressed={theme === "dark"} aria-label="Use dark theme"><span aria-hidden="true">◐</span><span className="theme-label">Dark</span></button>
+          </div>
         </div>
         <button className="filter-mobile" onClick={() => setMobileFilters(!mobileFilters)} aria-expanded={mobileFilters}>Layers <span>☷</span></button>
       </header>
@@ -475,7 +593,59 @@ export default function Home() {
         <div className="decades">{["ALL", "1960s", "1980s", "2000s", "2020s"].map((label) => <button key={label} onClick={() => label === "ALL" ? setYearRange([1940, 2026]) : setYearRange([Number(label.slice(0, 4)), Number(label.slice(0, 4)) + 9])}>{label}</button>)}</div>
       </section>
 
-      <footer className="statusbar"><span><i /> LIVE SOURCES AVAILABLE</span><span>MusicBrainz · Wikidata · Curated Atlas</span><a href="https://musicbrainz.org" target="_blank" rel="noreferrer">About the data ↗</a></footer>
+      {aboutOpen && (
+        <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setAboutOpen(false); }}>
+          <section className="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
+            <header className="modal-header">
+              <div><p>MUSIC ATLAS / FIELD GUIDE</p><h2 id="about-title">Follow the data trail.</h2></div>
+              <button ref={modalCloseRef} className="modal-close" onClick={() => setAboutOpen(false)} aria-label="Close About and Data">×</button>
+            </header>
+            <div className="modal-tabs" role="tablist" aria-label="About and diagnostics">
+              <button role="tab" aria-selected={modalTab === "about"} className={modalTab === "about" ? "active" : ""} onClick={() => setModalTab("about")}>About & data</button>
+              <button role="tab" aria-selected={modalTab === "diagnostics"} className={modalTab === "diagnostics" ? "active" : ""} onClick={() => setModalTab("diagnostics")}><span className="diagnostic-pulse" />Diagnostics</button>
+            </div>
+
+            {modalTab === "about" ? (
+              <div className="modal-body about-content">
+                <section className="about-lead"><p className="eyebrow">WHAT THIS IS</p><h3>A geographic lens on musical history.</h3><p>Search for an artist, then explore the people, places, labels, releases, and performances around them. Filter the loaded story by time, follow related artists, and inspect the source and geographic precision of every point.</p></section>
+                <section className="capability-grid" aria-label="Application capabilities">
+                  <div><span>01</span><strong>Search</strong><p>Find canonical artist identities without accounts or API keys.</p></div>
+                  <div><span>02</span><strong>Map</strong><p>Explore source-backed places and relationships across the world.</p></div>
+                  <div><span>03</span><strong>Filter</strong><p>Switch entity layers and narrow visible data by year or decade.</p></div>
+                  <div><span>04</span><strong>Trace</strong><p>See provenance, precision, and original-source links for mapped facts.</p></div>
+                </section>
+                <section className="data-section">
+                  <div className="section-heading"><span>DATA PROVENANCE</span><span>EXACT CURRENT USAGE</span></div>
+                  <article className="source-card live"><div className="source-number">01</div><div><h4>MusicBrainz <span>LIVE API</span></h4><p>Artist search supplies names, types, areas, active dates, and disambiguation. Artist lookup supplies canonical MBIDs, area/country, life span, artist and label relationships, external URLs, and the Wikidata link.</p><code>musicbrainz.org/ws/2/artist</code></div></article>
+                  <article className="source-card live"><div className="source-number">02</div><div><h4>Wikidata <span>LIVE API</span></h4><p>Only queried when MusicBrainz links an artist to Wikidata. The app reads P625 coordinates; when needed, it follows P19 birthplace to retrieve that place’s English label and coordinates. It does not run broad SPARQL queries.</p><code>wikidata.org/w/api.php · wbgetentities</code></div></article>
+                  <article className="source-card map-source"><div className="source-number">03</div><div><h4>OpenFreeMap <span>LIVE TILES</span></h4><p>Provides the light and dark MapLibre style documents and basemap tiles. It contributes geography and place labels, but no artist or music facts.</p><code>tiles.openfreemap.org/styles/bright|dark</code></div></article>
+                  <article className="source-card curated-source"><div className="source-number">04</div><div><h4>Curated Atlas <span>BUNDLED DATA</span></h4><p>Supplies the six featured artist stories, editorial descriptions, selected studios and venues, notable performances, releases, and corrected coordinates. These facts are marked “Curated” in detail panels.</p><code>{Object.keys(atlasData).length} artists · {Object.values(atlasData).flatMap((item) => item.nodes).length} mapped entities</code></div></article>
+                  <article className="source-card inactive"><div className="source-number">05</div><div><h4>Cover Art Archive <span>NOT CURRENTLY CALLED</span></h4><p>The architecture allows release artwork later, but this build does not request Cover Art Archive images or plot MusicBrainz releases without geographic evidence.</p><code>No browser request in the current build</code></div></article>
+                </section>
+                <aside className="precision-note"><strong>How locations are interpreted</strong><p>Wikidata coordinates are shown as source-backed points. MusicBrainz country-only areas are shown at country level. Entities without usable coordinates are omitted—Music Atlas does not invent or scatter locations.</p></aside>
+                <button className="open-diagnostics" onClick={() => setModalTab("diagnostics")}>Run source diagnostics <span>→</span></button>
+              </div>
+            ) : (
+              <div className="modal-body diagnostics-content">
+                <div className="diagnostics-intro"><div><p className="eyebrow">DIAGNOSTIC MODE</p><h3>Verify the live data path.</h3><p>Runs small browser-side checks against the same public endpoints the atlas expects. No credentials or personal data are sent.</p></div><button onClick={runDiagnostics} disabled={diagnosticsRunning}>{diagnosticsRunning ? "Checking…" : diagnosticsRanAt ? "Run again" : "Run diagnostics"}</button></div>
+                <div className="diagnostic-summary"><span>{diagnosticsRunning ? "CHECKS IN PROGRESS" : diagnosticsRanAt ? `LAST RUN ${diagnosticsRanAt}` : "NOT YET RUN"}</span><strong>{diagnostics.filter((item) => item.status === "pass").length}/{diagnostics.filter((item) => item.status !== "not-used").length} passing</strong></div>
+                <div className="diagnostic-list">
+                  {diagnostics.map((item) => (
+                    <article key={item.id} className={`diagnostic-row ${item.status}`}>
+                      <div className="diagnostic-status" aria-label={item.status}>{item.status === "pass" ? "✓" : item.status === "fail" ? "!" : item.status === "running" ? "↻" : item.status === "not-used" ? "—" : "·"}</div>
+                      <div className="diagnostic-copy"><div><strong>{item.name}</strong><span>{item.provider}</span></div><p>{item.detail || item.summary}</p><code>{item.endpoint}</code></div>
+                      <div className="diagnostic-time">{item.duration === undefined ? "" : item.duration === 0 ? "LOCAL" : `${item.duration} ms`}</div>
+                    </article>
+                  ))}
+                </div>
+                <p className="diagnostic-footnote">A failed check usually means a public service is unavailable, rate-limiting requests, or blocking cross-origin access. Other atlas layers should continue working independently.</p>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      <footer className="statusbar"><span><i /> LIVE SOURCES AVAILABLE</span><span>MusicBrainz · Wikidata · Curated Atlas</span><button onClick={() => openAbout()}>About the data ↗</button></footer>
     </main>
   );
 }
