@@ -39,6 +39,8 @@ type SearchResult = {
 type Theme = "light" | "dark";
 type AtlasMap = MapLibreMap & { __atlasNodes?: AtlasNode[]; __atlasAnchor?: [number, number]; __theme?: Theme };
 type ModalTab = "about" | "diagnostics";
+type HoverPlacement = "left" | "right" | "above" | "below";
+type HoverCard = { node: AtlasNode; x: number; y: number; placement: HoverPlacement };
 type DiagnosticState = "idle" | "running" | "pass" | "fail" | "not-used";
 type DiagnosticResult = {
   id: string;
@@ -183,6 +185,8 @@ export default function Home() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const modalCloseRef = useRef<HTMLButtonElement>(null);
+  const hoveredNodeRef = useRef<AtlasNode | null>(null);
+  const hoverHideTimer = useRef<number | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -200,6 +204,7 @@ export default function Home() {
   const [diagnostics, setDiagnostics] = useState<DiagnosticResult[]>(initialDiagnostics);
   const [diagnosticsRunning, setDiagnosticsRunning] = useState(false);
   const [diagnosticsRanAt, setDiagnosticsRanAt] = useState<string | null>(null);
+  const [hoverCard, setHoverCard] = useState<HoverCard | null>(null);
 
   const visibleNodes = useMemo(() => (atlas?.nodes ?? []).filter((node) => {
     const start = node.year ?? 1940;
@@ -208,7 +213,7 @@ export default function Home() {
   }), [atlas, activeTypes, yearRange]);
 
   const loadArtist = useCallback(async (result: SearchResult | { id: string; name: string }, navigate = true) => {
-    setQuery(""); setResults([]); setDetail(null); setLoadingStage("Locating artist…");
+    setQuery(""); setResults([]); setDetail(null); setHoverCard(null); hoveredNodeRef.current = null; setLoadingStage("Locating artist…");
     if (navigate) window.history.pushState({ artist: result.id }, "", `?artist=${result.id}`);
 
     const curated = atlasData[result.id];
@@ -346,12 +351,35 @@ export default function Home() {
         (map.getSource("atlas-points") as { setData: (data: object) => void }).setData({ type: "FeatureCollection", features });
         (map.getSource("atlas-lines") as { setData: (data: object) => void }).setData({ type: "FeatureCollection", features: lines });
       });
-      map.on("mouseenter", "atlas-points", () => { map.getCanvas().style.cursor = "pointer"; });
-      map.on("mouseleave", "atlas-points", () => { map.getCanvas().style.cursor = ""; });
+      const positionHoverCard = (node: AtlasNode) => {
+        const point = map.project(node.coordinates);
+        const { clientWidth, clientHeight } = map.getContainer();
+        const placement: HoverPlacement = point.x > clientWidth - 370 ? "left" : point.y > clientHeight - 250 ? "above" : point.y < 205 ? "below" : "right";
+        setHoverCard({ node, x: point.x, y: point.y, placement });
+      };
+      map.on("mousemove", "atlas-points", (event) => {
+        if (hoverHideTimer.current !== null) window.clearTimeout(hoverHideTimer.current);
+        const id = event.features?.[0]?.properties?.id;
+        const node = (map as AtlasMap).__atlasNodes?.find((item) => item.id === id);
+        if (!node) return;
+        hoveredNodeRef.current = node;
+        map.getCanvas().style.cursor = "pointer";
+        positionHoverCard(node);
+      });
+      map.on("mouseleave", "atlas-points", () => {
+        map.getCanvas().style.cursor = "";
+        hoverHideTimer.current = window.setTimeout(() => {
+          hoveredNodeRef.current = null;
+          setHoverCard(null);
+        }, 180);
+      });
+      map.on("move", () => {
+        if (hoveredNodeRef.current) positionHoverCard(hoveredNodeRef.current);
+      });
       map.on("click", "atlas-points", (event) => {
         const id = event.features?.[0]?.properties?.id;
         const node = (mapRef.current as AtlasMap).__atlasNodes?.find((item) => item.id === id);
-        if (node) setDetail(node);
+        if (node && window.matchMedia("(hover: none)").matches) setDetail(node);
       });
       mapRef.current = map;
     });
@@ -369,7 +397,31 @@ export default function Home() {
       const lines = anchor ? visibleNodes.slice(1).map((node) => ({ type: "Feature" as const, properties: {}, geometry: { type: "LineString" as const, coordinates: [anchor, node.coordinates] } })) : [];
       (map.getSource("atlas-points") as { setData: (data: object) => void } | undefined)?.setData({ type: "FeatureCollection", features });
       (map.getSource("atlas-lines") as { setData: (data: object) => void } | undefined)?.setData({ type: "FeatureCollection", features: lines });
-      if (atlas) map.flyTo({ center: atlas.center, zoom: atlas.nodes.length > 1 ? 4.1 : 2.8, duration: 1800, essential: true });
+      if (atlas) {
+        const uniqueCoordinates = [...new Map(visibleNodes.map((node) => [node.coordinates.join(","), node.coordinates])).values()];
+        if (uniqueCoordinates.length <= 1) {
+          map.flyTo({ center: uniqueCoordinates[0] || atlas.center, zoom: uniqueCoordinates.length ? 5.2 : 2.2, duration: 1400, essential: true });
+        } else {
+          const longitudes = uniqueCoordinates.map((coordinate) => coordinate[0]);
+          const latitudes = uniqueCoordinates.map((coordinate) => coordinate[1]);
+          const width = map.getContainer().clientWidth;
+          const mobile = width < 801;
+          const compact = width < 1100;
+          map.fitBounds(
+            [[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]],
+            {
+              padding: mobile
+                ? { top: 85, right: 28, bottom: 180, left: 28 }
+                : compact
+                  ? { top: 100, right: 55, bottom: 145, left: Math.min(350, width * .34) }
+                  : { top: 105, right: 270, bottom: 150, left: 470 },
+              maxZoom: 7.5,
+              duration: 1600,
+              essential: true,
+            },
+          );
+        }
+      }
     };
     if (map.isStyleLoaded()) update(); else map.once("style.load", update);
   }, [atlas, visibleNodes]);
@@ -490,6 +542,16 @@ export default function Home() {
     setAboutOpen(true);
   };
 
+  const cancelHoverClose = () => {
+    if (hoverHideTimer.current !== null) window.clearTimeout(hoverHideTimer.current);
+  };
+
+  const closeHoverCard = () => {
+    cancelHoverClose();
+    hoveredNodeRef.current = null;
+    setHoverCard(null);
+  };
+
   return (
     <main className={`atlas-shell ${theme}`}>
       <div ref={mapContainer} className="map" aria-label="Interactive world map of musical connections" />
@@ -567,6 +629,32 @@ export default function Home() {
         ))}
         <div className="source-key"><span>◒</span><p><strong>DATA LAYERS</strong> Live + curated sources</p></div>
       </aside>
+
+      {hoverCard && (
+        <aside
+          className={`map-popover ${hoverCard.placement}`}
+          style={{ left: hoverCard.x, top: hoverCard.y }}
+          onMouseEnter={cancelHoverClose}
+          onMouseLeave={closeHoverCard}
+          role="dialog"
+          aria-label={`${hoverCard.node.name} details`}
+        >
+          <button className="popover-close" onClick={closeHoverCard} aria-label="Close details">×</button>
+          <div className="detail-type"><span style={{ background: typeMeta[hoverCard.node.type].color }} />{hoverCard.node.type.toUpperCase()}</div>
+          <h2>{hoverCard.node.name}</h2>
+          <p className="detail-location">⌖ {hoverCard.node.location}</p>
+          <p className="popover-description">{hoverCard.node.description}</p>
+          <div className="popover-facts">
+            <span><small>DATE</small><strong>{hoverCard.node.year ? `${hoverCard.node.year}${hoverCard.node.endYear ? `—${hoverCard.node.endYear}` : ""}` : "Unknown"}</strong></span>
+            <span><small>PRECISION</small><strong>≈ {hoverCard.node.precision}</strong></span>
+          </div>
+          <div className="popover-source"><span>Source</span><strong className={hoverCard.node.source === "Curated" ? "curated" : ""}>{hoverCard.node.source === "Curated" ? "◆ " : "↗ "}{hoverCard.node.source}</strong></div>
+          <div className="popover-actions">
+            {hoverCard.node.sourceUrl && <a href={hoverCard.node.sourceUrl} target="_blank" rel="noreferrer">Original source ↗</a>}
+            {hoverCard.node.type === "artist" && hoverCard.node.id !== atlas?.artist.id && <button onClick={() => loadArtist({ id: hoverCard.node.id, name: hoverCard.node.name })}>Explore artist →</button>}
+          </div>
+        </aside>
+      )}
 
       {detail && (
         <aside className="detail-panel">

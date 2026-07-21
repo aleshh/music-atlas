@@ -135,6 +135,37 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .source-key p { margin: 0; font-size: 9px; line-height: 1.4; }
 .source-key strong { display: block; color: #8e9790; letter-spacing: .1em; }
 
+.map-popover { position: absolute; z-index: 16; width: 330px; padding: 21px; border: 1px solid var(--line); background: rgba(18,23,20,.98); box-shadow: 0 22px 65px rgba(0,0,0,.34); backdrop-filter: blur(18px); }
+.map-popover.right { transform: translate(18px, -50%); }
+.map-popover.left { transform: translate(calc(-100% - 18px), -50%); }
+.map-popover.above { transform: translate(-50%, calc(-100% - 18px)); }
+.map-popover.below { transform: translate(-50%, 18px); }
+.map-popover:before { content: ""; position: absolute; width: 10px; height: 10px; border: solid var(--line); background: inherit; transform: rotate(45deg); }
+.map-popover.right:before { left: -6px; top: calc(50% - 5px); border-width: 0 0 1px 1px; }
+.map-popover.left:before { right: -6px; top: calc(50% - 5px); border-width: 1px 1px 0 0; }
+.map-popover.above:before { left: calc(50% - 5px); bottom: -6px; border-width: 0 1px 1px 0; }
+.map-popover.below:before { left: calc(50% - 5px); top: -6px; border-width: 1px 0 0 1px; }
+.popover-close { position: absolute; right: 13px; top: 10px; border: 0; background: transparent; color: #7b857e; font-size: 20px; cursor: pointer; }
+.map-popover h2 { margin: 15px 24px 7px 0; font: 400 27px/1.08 Georgia, serif; letter-spacing: -.025em; }
+.map-popover .detail-location { margin: 0; }
+.popover-description { margin: 17px 0; padding-top: 15px; border-top: 1px solid var(--line); color: #a0aaa3; font-size: 11px; line-height: 1.55; }
+.popover-facts { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); }
+.popover-facts > span { padding: 10px 11px; }
+.popover-facts > span + span { border-left: 1px solid var(--line); }
+.popover-facts small { display: block; color: #687169; font: 7px var(--font-geist-mono), monospace; letter-spacing: .12em; }
+.popover-facts strong { display: block; margin-top: 5px; color: #d5dad6; font-size: 9px; font-weight: 500; text-transform: capitalize; }
+.popover-source { display: flex; justify-content: space-between; margin-top: 13px; padding: 10px 0; border-block: 1px solid var(--line); color: #747d76; font-size: 9px; }
+.popover-source strong { color: #adb5af; }
+.popover-source .curated { color: #ffd166; }
+.popover-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 12px; }
+.popover-actions a, .popover-actions button { padding: 0; border: 0; background: transparent; color: #88928b; font-size: 9px; text-decoration: none; cursor: pointer; }
+.popover-actions button { margin-left: auto; color: var(--orange); }
+.popover-actions a:hover, .popover-actions button:hover { color: var(--ink); }
+.light .map-popover { background: rgba(250,248,241,.98); box-shadow: 0 22px 65px rgba(49,57,51,.2); }
+.light .popover-description { color: #59655e; }
+.light .popover-facts strong, .light .popover-source strong { color: #28322c; }
+.light .popover-facts small, .light .popover-source, .light .popover-actions a { color: #667169; }
+
 .detail-panel { position: absolute; z-index: 8; top: 90px; right: 24px; bottom: 148px; width: 340px; padding: 28px; background: rgba(18,23,20,.97); border: 1px solid var(--line); box-shadow: -25px 20px 60px rgba(0,0,0,.35); overflow-y: auto; }
 .detail-close { position: absolute; right: 18px; top: 15px; border: 0; background: transparent; color: #808a83; font-size: 25px; cursor: pointer; }
 .detail-type { display: flex; align-items: center; gap: 8px; color: #7c857f; font: 9px var(--font-geist-mono), monospace; letter-spacing: .16em; }
@@ -269,6 +300,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .statusbar { justify-content: space-between; }
   .artist-card { width: calc(100% - 28px); }
   .artist-title h1 { font-size: 34px; }
+  .map-popover { display: none; }
   .modal-backdrop { padding: 0; place-items: stretch; }
   .about-modal { width: 100%; max-height: 100dvh; height: 100dvh; border: 0; }
   .modal-header { padding: 20px 18px 17px; }
