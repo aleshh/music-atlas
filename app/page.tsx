@@ -187,6 +187,7 @@ export default function Home() {
   const modalCloseRef = useRef<HTMLButtonElement>(null);
   const hoveredNodeRef = useRef<AtlasNode | null>(null);
   const hoverHideTimer = useRef<number | null>(null);
+  const currentArtistRef = useRef<Atlas["artist"] | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -205,6 +206,7 @@ export default function Home() {
   const [diagnosticsRunning, setDiagnosticsRunning] = useState(false);
   const [diagnosticsRanAt, setDiagnosticsRanAt] = useState<string | null>(null);
   const [hoverCard, setHoverCard] = useState<HoverCard | null>(null);
+  const [previousArtistName, setPreviousArtistName] = useState<string | null>(null);
 
   const visibleNodes = useMemo(() => (atlas?.nodes ?? []).filter((node) => {
     const start = node.year ?? 1940;
@@ -214,10 +216,15 @@ export default function Home() {
 
   const loadArtist = useCallback(async (result: SearchResult | { id: string; name: string }, navigate = true) => {
     setQuery(""); setResults([]); setDetail(null); setHoverCard(null); hoveredNodeRef.current = null; setLoadingStage("Locating artist…");
-    if (navigate) window.history.pushState({ artist: result.id }, "", `?artist=${result.id}`);
+    if (navigate) {
+      const previousName = currentArtistRef.current?.name || null;
+      setPreviousArtistName(previousName);
+      window.history.pushState({ artist: result.id, previousArtistName: previousName }, "", `?artist=${result.id}`);
+    }
 
     const curated = atlasData[result.id];
     if (curated) {
+      currentArtistRef.current = curated.artist;
       setAtlas(curated);
       setLoadingStage(null);
       return;
@@ -283,28 +290,39 @@ export default function Home() {
         if (node) nodes.push(node);
       });
 
-      setAtlas({
+      const nextAtlas: Atlas = {
         artist: { id: artist.id, name: artist.name, subtitle: artist.disambiguation || `${artist.type || "Artist"} from ${locationName}`, years: yearsFor(artist), country: artist.country || artist.area?.name || "Unknown area" },
         center, nodes,
-      });
+      };
+      currentArtistRef.current = nextAtlas.artist;
+      setAtlas(nextAtlas);
       setLoadingStage(null);
     } catch {
       setLoadingStage(null);
-      setAtlas({
+      const fallbackAtlas: Atlas = {
         artist: { id: result.id, name: result.name, subtitle: "Live data is temporarily unavailable", years: "Dates unavailable", country: "Location unavailable" },
         center: [0, 20],
         nodes: [],
-      });
+      };
+      currentArtistRef.current = fallbackAtlas.artist;
+      setAtlas(fallbackAtlas);
     }
   }, []);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("artist");
     if (id) queueMicrotask(() => loadArtist({ id, name: "Artist" }, false));
-    const onPopState = () => {
+    const onPopState = (event: PopStateEvent) => {
       const artistId = new URLSearchParams(window.location.search).get("artist");
-      if (artistId) loadArtist({ id: artistId, name: "Artist" }, false);
-      else { setAtlas(null); setDetail(null); }
+      if (artistId) {
+        setPreviousArtistName(typeof event.state?.previousArtistName === "string" ? event.state.previousArtistName : null);
+        loadArtist({ id: artistId, name: "Artist" }, false);
+      } else {
+        currentArtistRef.current = null;
+        setPreviousArtistName(null);
+        setAtlas(null);
+        setDetail(null);
+      }
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
@@ -552,13 +570,22 @@ export default function Home() {
     setHoverCard(null);
   };
 
+  const goHome = () => {
+    window.history.pushState({ home: true }, "", "/");
+    currentArtistRef.current = null;
+    setPreviousArtistName(null);
+    setAtlas(null);
+    setDetail(null);
+    closeHoverCard();
+  };
+
   return (
     <main className={`atlas-shell ${theme}`}>
       <div ref={mapContainer} className="map" aria-label="Interactive world map of musical connections" />
       <div className="map-vignette" />
 
       <header className="topbar">
-        <button className="brand" onClick={() => { window.history.pushState({}, "", "/"); setAtlas(null); setDetail(null); }} aria-label="Return to Music Atlas home">
+        <button className="brand" onClick={goHome} aria-label="Return to Music Atlas home">
           <span className="brand-mark">M∿</span><span>MUSIC ATLAS</span>
         </button>
         <div className="search-wrap">
@@ -579,6 +606,7 @@ export default function Home() {
           )}
         </div>
         <div className="topbar-actions">
+          <button className="home-trigger" onClick={goHome} aria-label="Go to Music Atlas home"><span aria-hidden="true">⌂</span><span>Home</span></button>
           <button className="about-trigger" onClick={() => openAbout()} aria-label="About Music Atlas and its data"><span aria-hidden="true">i</span><span>About</span></button>
           <div className="theme-toggle" role="group" aria-label="Color theme">
             <button className={theme === "light" ? "active" : ""} onClick={() => switchTheme("light")} aria-pressed={theme === "light"} aria-label="Use light theme"><span aria-hidden="true">☀</span><span className="theme-label">Light</span></button>
@@ -609,7 +637,7 @@ export default function Home() {
 
       {atlas && (
         <section className="artist-card">
-          <button className="back" onClick={() => { window.history.back(); }}>← <span>Back to atlas</span></button>
+          <button className="back" onClick={() => { window.history.back(); }}>← <span>{previousArtistName ? `Back to ${previousArtistName}` : "Back to atlas"}</span></button>
           <div className="artist-title"><div className="title-pulse" /><div><p>EXPLORING</p><h1>{atlas.artist.name}</h1></div></div>
           <p className="artist-subtitle">{atlas.artist.subtitle}</p>
           <div className="artist-facts"><span>{atlas.artist.country}</span><span>{atlas.artist.years}</span><span>{visibleNodes.length} connections</span></div>
