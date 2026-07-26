@@ -65,6 +65,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .light .back { color: #667169; }
 .light .back:hover { color: #1f2822; }
 .light .progressive { background: rgba(31,45,37,.05); color: #4f5b54; }
+.light .biography-loading, .light .biography-heading, .light .biography-license { color: #667169; }
+.light .artist-biography > p { color: #4f5b54; }
 .light .layers-panel > button { color: #78827c; }
 .light .layers-panel > button.active { color: #243029; }
 .light .layers-panel small { color: #7b857e; }
@@ -122,6 +124,15 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .artist-facts span + span:before { content: "·"; margin-right: 14px; }
 .progressive { position: relative; margin: 20px 0 0 24px; padding: 12px 38px; background: rgba(255,255,255,.04); color: #aeb6b0; font-size: 11px; }
 .progressive .search-spinner { left: 13px; right: auto; top: 10px; }
+.biography-loading { position: relative; margin: 19px 0 0 24px; padding-left: 25px; color: #7e8881; font-size: 11px; }
+.biography-loading .search-spinner { left: 0; right: auto; top: -1px; }
+.artist-biography { margin: 20px 0 0 24px; padding-top: 16px; border-top: 1px solid var(--line); }
+.biography-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; color: #7c857f; font: 10px var(--font-geist-mono), monospace; letter-spacing: .11em; }
+.biography-heading a { color: #949d97; text-decoration: none; letter-spacing: 0; }
+.artist-biography > p { display: -webkit-box; margin: 12px 0 10px; overflow: hidden; color: #a8afa9; font-size: 12px; line-height: 1.58; -webkit-box-orient: vertical; -webkit-line-clamp: 5; }
+.biography-license { color: #6f7972; font-size: 10px; line-height: 1.45; }
+.biography-license a { color: inherit; }
+.biography-heading a:hover, .biography-license a:hover { color: var(--orange); }
 .empty-state { margin: 20px 0 0 24px; padding: 12px; background: rgba(255,209,102,.08); color: #c6b985; font-size: 11px; line-height: 1.5; }
 
 .layers-panel { position: absolute; z-index: 5; top: 100px; right: 24px; width: 224px; background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(14px); }

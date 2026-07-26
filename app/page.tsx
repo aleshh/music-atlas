@@ -53,6 +53,9 @@ type DiagnosticResult = {
   detail?: string;
 };
 
+type WikipediaBio = { title: string; extract: string; url: string };
+type UrlRelation = { type?: string; url?: { resource?: string } };
+
 const typeMeta: Record<EntityType, { label: string; color: string }> = {
   artist: { label: "Artists", color: "#ff6b4a" },
   place: { label: "Places", color: "#ffd166" },
@@ -149,10 +152,27 @@ const initialDiagnostics: DiagnosticResult[] = [
   { id: "mb-search", name: "Artist search", provider: "MusicBrainz", endpoint: "/ws/2/artist?query=artist:Autechre&fmt=json&limit=1", status: "idle", summary: "Checks search results and canonical artist IDs." },
   { id: "mb-lookup", name: "Artist relationships", provider: "MusicBrainz", endpoint: "/ws/2/artist/{MBID}?inc=url-rels+artist-rels+label-rels&fmt=json", status: "idle", summary: "Checks artist identity, areas, dates, and relationship arrays." },
   { id: "wikidata", name: "Geographic claims", provider: "Wikidata", endpoint: "/w/api.php?action=wbgetentities&ids=Q60&props=claims|labels", status: "idle", summary: "Checks entity labels and P625 coordinate claims." },
+  { id: "wikipedia", name: "Artist biography", provider: "Wikipedia", endpoint: "/api/rest_v1/page/summary/Fela_Kuti", status: "idle", summary: "Checks a linked article summary and canonical page URL." },
   { id: "map", name: "Basemap style", provider: "OpenFreeMap", endpoint: "/styles/bright", status: "idle", summary: "Checks that the map style and its layer definitions are readable." },
   { id: "curated", name: "Curated atlas", provider: "Bundled JSON", endpoint: "Local application bundle", status: "idle", summary: "Checks curated records and coordinate bounds without a network request." },
   { id: "cover-art", name: "Release artwork", provider: "Cover Art Archive", endpoint: "No endpoint called", status: "not-used", summary: "Not currently requested by this prototype." },
 ];
+
+function wikipediaTitleFromRelations(relations: UrlRelation[] = []) {
+  const resource = relations.find((relation) => relation.type === "wikipedia" && relation.url?.resource?.includes("en.wikipedia.org/wiki/"))?.url?.resource;
+  if (!resource) return null;
+  try {
+    return decodeURIComponent(new URL(resource).pathname.replace(/^\/wiki\//, ""));
+  } catch { return null; }
+}
+
+async function fetchWikipediaBio(title: string): Promise<WikipediaBio> {
+  const response = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replaceAll(" ", "_"))}`, { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error("Wikipedia summary unavailable");
+  const summary = await response.json() as { title?: string; extract?: string; content_urls?: { desktop?: { page?: string } } };
+  if (!summary.title || !summary.extract || !summary.content_urls?.desktop?.page) throw new Error("Wikipedia summary incomplete");
+  return { title: summary.title, extract: summary.extract, url: summary.content_urls.desktop.page };
+}
 
 function yearsFor(result: SearchResult) {
   const span = result["life-span"];
@@ -188,6 +208,8 @@ export default function Home() {
   const hoveredNodeRef = useRef<AtlasNode | null>(null);
   const hoverHideTimer = useRef<number | null>(null);
   const currentArtistRef = useRef<Atlas["artist"] | null>(null);
+  const requestedBiographyArtistRef = useRef<string | null>(null);
+  const biographyCache = useRef(new Map<string, WikipediaBio | null>());
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -207,6 +229,8 @@ export default function Home() {
   const [diagnosticsRanAt, setDiagnosticsRanAt] = useState<string | null>(null);
   const [hoverCard, setHoverCard] = useState<HoverCard | null>(null);
   const [previousArtistName, setPreviousArtistName] = useState<string | null>(null);
+  const [biography, setBiography] = useState<WikipediaBio | null>(null);
+  const [biographyLoading, setBiographyLoading] = useState(false);
 
   const visibleNodes = useMemo(() => (atlas?.nodes ?? []).filter((node) => {
     const start = node.year ?? 1940;
@@ -214,8 +238,50 @@ export default function Home() {
     return activeTypes.has(node.type) && end >= yearRange[0] && start <= yearRange[1];
   }), [atlas, activeTypes, yearRange]);
 
+  const loadBiography = useCallback(async (artistId: string, suppliedRelations?: UrlRelation[], suppliedTitle?: string | null) => {
+    if (biographyCache.current.has(artistId)) {
+      if (requestedBiographyArtistRef.current === artistId) {
+        setBiography(biographyCache.current.get(artistId) ?? null);
+        setBiographyLoading(false);
+      }
+      return;
+    }
+
+    try {
+      let relations = suppliedRelations;
+      if (!relations) {
+        const artistResponse = await fetch(`https://musicbrainz.org/ws/2/artist/${artistId}?inc=url-rels&fmt=json`, { headers: { Accept: "application/json" } });
+        if (!artistResponse.ok) throw new Error("MusicBrainz links unavailable");
+        relations = ((await artistResponse.json()) as { relations?: UrlRelation[] }).relations ?? [];
+      }
+
+      let title = suppliedTitle || wikipediaTitleFromRelations(relations);
+      if (!title) {
+        const qid = relations.find((relation) => relation.type === "wikidata")?.url?.resource?.match(/Q\d+/)?.[0];
+        if (qid) {
+          const wikidataResponse = await fetch(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${qid}&props=sitelinks&sitefilter=enwiki&origin=*&format=json`);
+          if (wikidataResponse.ok) {
+            const data = await wikidataResponse.json() as { entities?: Record<string, { sitelinks?: { enwiki?: { title?: string } } }> };
+            title = data.entities?.[qid]?.sitelinks?.enwiki?.title;
+          }
+        }
+      }
+
+      if (!title) throw new Error("No English Wikipedia article linked");
+      const nextBiography = await fetchWikipediaBio(title);
+      biographyCache.current.set(artistId, nextBiography);
+      if (requestedBiographyArtistRef.current === artistId) setBiography(nextBiography);
+    } catch {
+      biographyCache.current.set(artistId, null);
+      if (requestedBiographyArtistRef.current === artistId) setBiography(null);
+    } finally {
+      if (requestedBiographyArtistRef.current === artistId) setBiographyLoading(false);
+    }
+  }, []);
+
   const loadArtist = useCallback(async (result: SearchResult | { id: string; name: string }, navigate = true) => {
-    setQuery(""); setResults([]); setDetail(null); setHoverCard(null); hoveredNodeRef.current = null; setLoadingStage("Locating artist…");
+    requestedBiographyArtistRef.current = result.id;
+    setQuery(""); setResults([]); setDetail(null); setHoverCard(null); setBiography(null); setBiographyLoading(true); hoveredNodeRef.current = null; setLoadingStage("Locating artist…");
     if (navigate) {
       const previousName = currentArtistRef.current?.name || null;
       setPreviousArtistName(previousName);
@@ -227,6 +293,7 @@ export default function Home() {
       currentArtistRef.current = curated.artist;
       setAtlas(curated);
       setLoadingStage(null);
+      void loadBiography(result.id);
       return;
     }
 
@@ -240,14 +307,16 @@ export default function Home() {
       let hasGeographicLocation = Boolean(countryCenters[country]);
       let locationSource: AtlasNode["source"] = "MusicBrainz";
       let locationName = artist.area?.name || artist["begin-area"]?.name || artist.country || "Approximate location";
+      let wikipediaTitle: string | null = wikipediaTitleFromRelations(artist.relations as UrlRelation[] | undefined);
 
       setLoadingStage("Resolving places…");
       const wikidataRelation = artist.relations?.find((relation: { type?: string; url?: { resource?: string } }) => relation.type === "wikidata");
       const qid = wikidataRelation?.url?.resource?.match(/Q\d+/)?.[0];
       if (qid) {
         try {
-          const wikiResponse = await fetch(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${qid}&props=claims%7Cdescriptions&languages=en&origin=*&format=json`);
+          const wikiResponse = await fetch(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${qid}&props=claims%7Cdescriptions%7Csitelinks&sitefilter=enwiki&languages=en&origin=*&format=json`);
           const entity = (await wikiResponse.json()).entities?.[qid];
+          wikipediaTitle ||= entity?.sitelinks?.enwiki?.title || null;
           const coordinate = entity?.claims?.P625?.[0]?.mainsnak?.datavalue?.value;
           if (coordinate) {
             center = [coordinate.longitude, coordinate.latitude];
@@ -297,6 +366,7 @@ export default function Home() {
       currentArtistRef.current = nextAtlas.artist;
       setAtlas(nextAtlas);
       setLoadingStage(null);
+      void loadBiography(artist.id, artist.relations as UrlRelation[] | undefined, wikipediaTitle);
     } catch {
       setLoadingStage(null);
       const fallbackAtlas: Atlas = {
@@ -306,8 +376,9 @@ export default function Home() {
       };
       currentArtistRef.current = fallbackAtlas.artist;
       setAtlas(fallbackAtlas);
+      setBiographyLoading(false);
     }
-  }, []);
+  }, [loadBiography]);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("artist");
@@ -319,9 +390,12 @@ export default function Home() {
         loadArtist({ id: artistId, name: "Artist" }, false);
       } else {
         currentArtistRef.current = null;
+        requestedBiographyArtistRef.current = null;
         setPreviousArtistName(null);
         setAtlas(null);
         setDetail(null);
+        setBiography(null);
+        setBiographyLoading(false);
       }
     };
     window.addEventListener("popstate", onPopState);
@@ -534,6 +608,12 @@ export default function Home() {
       return `${entity.labels.en.value} returned with a P625 coordinate claim.`;
     });
 
+    await runJsonCheck("wikipedia", "https://en.wikipedia.org/api/rest_v1/page/summary/Fela_Kuti", (data) => {
+      const contentUrls = data.content_urls as { desktop?: { page?: string } } | undefined;
+      if (!data.title || typeof data.extract !== "string" || data.extract.length < 80 || !contentUrls?.desktop?.page) throw new Error("Response was missing biography text or its canonical article URL.");
+      return `${String(data.title)} returned a ${data.extract.length}-character biography summary.`;
+    });
+
     await runJsonCheck("map", "https://tiles.openfreemap.org/styles/bright", (data) => {
       const layers = data.layers as unknown[] | undefined;
       if (!data.version || !Array.isArray(layers) || layers.length === 0) throw new Error("Response was not a valid MapLibre style document.");
@@ -573,9 +653,12 @@ export default function Home() {
   const goHome = () => {
     window.history.pushState({ home: true }, "", "/");
     currentArtistRef.current = null;
+    requestedBiographyArtistRef.current = null;
     setPreviousArtistName(null);
     setAtlas(null);
     setDetail(null);
+    setBiography(null);
+    setBiographyLoading(false);
     closeHoverCard();
   };
 
@@ -642,6 +725,14 @@ export default function Home() {
           <p className="artist-subtitle">{atlas.artist.subtitle}</p>
           <div className="artist-facts"><span>{atlas.artist.country}</span><span>{atlas.artist.years}</span><span>{visibleNodes.length} connections</span></div>
           {loadingStage && <div className="progressive"><span className="search-spinner" /> {loadingStage}</div>}
+          {biographyLoading && !loadingStage && <div className="biography-loading"><span className="search-spinner" /> Finding linked Wikipedia biography…</div>}
+          {biography && (
+            <section className="artist-biography" aria-label={`Wikipedia biography for ${atlas.artist.name}`}>
+              <div className="biography-heading"><span>FROM WIKIPEDIA</span><a href={biography.url} target="_blank" rel="noreferrer">Read article ↗</a></div>
+              <p>{biography.extract}</p>
+              <div className="biography-license">Text from <a href={biography.url} target="_blank" rel="noreferrer">{biography.title}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA</a></div>
+            </section>
+          )}
           {!loadingStage && atlas.nodes.length === 0 && <div className="empty-state">This artist has too little mappable public data right now. Try one of the curated stories.</div>}
         </section>
       )}
@@ -734,9 +825,10 @@ export default function Home() {
                   <div className="section-heading"><span>DATA PROVENANCE</span><span>EXACT CURRENT USAGE</span></div>
                   <article className="source-card live"><div className="source-number">01</div><div><h4>MusicBrainz <span>LIVE API</span></h4><p>Artist search supplies names, types, areas, active dates, and disambiguation. Artist lookup supplies canonical MBIDs, area/country, life span, artist and label relationships, external URLs, and the Wikidata link.</p><code>musicbrainz.org/ws/2/artist</code></div></article>
                   <article className="source-card live"><div className="source-number">02</div><div><h4>Wikidata <span>LIVE API</span></h4><p>Only queried when MusicBrainz links an artist to Wikidata. The app reads P625 coordinates; when needed, it follows P19 birthplace to retrieve that place’s English label and coordinates. It does not run broad SPARQL queries.</p><code>wikidata.org/w/api.php · wbgetentities</code></div></article>
-                  <article className="source-card map-source"><div className="source-number">03</div><div><h4>OpenFreeMap <span>LIVE TILES</span></h4><p>Provides the light and dark MapLibre style documents and basemap tiles. It contributes geography and place labels, but no artist or music facts.</p><code>tiles.openfreemap.org/styles/bright|dark</code></div></article>
-                  <article className="source-card curated-source"><div className="source-number">04</div><div><h4>Curated Atlas <span>BUNDLED DATA</span></h4><p>Supplies the six featured artist stories, editorial descriptions, selected studios and venues, notable performances, releases, and corrected coordinates. These facts are marked “Curated” in detail panels.</p><code>{Object.keys(atlasData).length} artists · {Object.values(atlasData).flatMap((item) => item.nodes).length} mapped entities</code></div></article>
-                  <article className="source-card inactive"><div className="source-number">05</div><div><h4>Cover Art Archive <span>NOT CURRENTLY CALLED</span></h4><p>The architecture allows release artwork later, but this build does not request Cover Art Archive images or plot MusicBrainz releases without geographic evidence.</p><code>No browser request in the current build</code></div></article>
+                  <article className="source-card live wikipedia-source"><div className="source-number">03</div><div><h4>Wikipedia <span>LIVE API</span></h4><p>When MusicBrainz or Wikidata links an English Wikipedia article, the app requests its plain-text lead summary and canonical article URL. The biography loads independently and is attributed under CC BY-SA.</p><code>en.wikipedia.org/api/rest_v1/page/summary</code></div></article>
+                  <article className="source-card map-source"><div className="source-number">04</div><div><h4>OpenFreeMap <span>LIVE TILES</span></h4><p>Provides the light and dark MapLibre style documents and basemap tiles. It contributes geography and place labels, but no artist or music facts.</p><code>tiles.openfreemap.org/styles/bright|dark</code></div></article>
+                  <article className="source-card curated-source"><div className="source-number">05</div><div><h4>Curated Atlas <span>BUNDLED DATA</span></h4><p>Supplies the six featured artist stories, editorial descriptions, selected studios and venues, notable performances, releases, and corrected coordinates. These facts are marked “Curated” in detail panels.</p><code>{Object.keys(atlasData).length} artists · {Object.values(atlasData).flatMap((item) => item.nodes).length} mapped entities</code></div></article>
+                  <article className="source-card inactive"><div className="source-number">06</div><div><h4>Cover Art Archive <span>NOT CURRENTLY CALLED</span></h4><p>The architecture allows release artwork later, but this build does not request Cover Art Archive images or plot MusicBrainz releases without geographic evidence.</p><code>No browser request in the current build</code></div></article>
                 </section>
                 <aside className="precision-note"><strong>How locations are interpreted</strong><p>Wikidata coordinates are shown as source-backed points. MusicBrainz country-only areas are shown at country level. Entities without usable coordinates are omitted—Music Atlas does not invent or scatter locations.</p></aside>
                 <button className="open-diagnostics" onClick={() => setModalTab("diagnostics")}>Run source diagnostics <span>→</span></button>
@@ -761,7 +853,7 @@ export default function Home() {
         </div>
       )}
 
-      <footer className="statusbar"><span><i /> LIVE SOURCES AVAILABLE</span><span>MusicBrainz · Wikidata · Curated Atlas</span><button onClick={() => openAbout()}>About the data ↗</button></footer>
+      <footer className="statusbar"><span><i /> LIVE SOURCES AVAILABLE</span><span>MusicBrainz · Wikidata · Wikipedia · Curated Atlas</span><button onClick={() => openAbout()}>About the data ↗</button></footer>
     </main>
   );
 }
