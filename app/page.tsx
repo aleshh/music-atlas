@@ -71,8 +71,8 @@ const countryCenters: Record<string, [number, number]> = {
 };
 
 const atlasData: Record<string, Atlas> = {
-  "1b4dd0d8-99d6-4e7c-a7b6-866f30c5c67d": {
-    artist: { id: "1b4dd0d8-99d6-4e7c-a7b6-866f30c5c67d", name: "Fela Kuti", subtitle: "Nigerian bandleader, composer & activist", years: "1938—1997", country: "Nigeria" },
+  "6514cffa-fbe0-4965-ad88-e998ead8a82a": {
+    artist: { id: "6514cffa-fbe0-4965-ad88-e998ead8a82a", name: "Fela Kuti", subtitle: "Nigerian bandleader, composer & activist", years: "1938—1997", country: "Nigeria" },
     center: [3.3792, 6.5244],
     nodes: [
       { id: "fela", name: "Fela Kuti", type: "artist", coordinates: [3.3792, 6.5244], year: 1938, endYear: 1997, location: "Lagos, Nigeria", description: "The restless center of Afrobeat: bandleader, saxophonist, composer and political provocateur.", precision: "city", source: "Curated" },
@@ -96,8 +96,8 @@ const atlasData: Record<string, Atlas> = {
       { id: "eno", name: "Brian Eno", type: "artist", coordinates: [-1.2577, 52.6298], year: 1977, endYear: 1979, location: "Woodbridge, UK", description: "Collaborator on the experimental language of the Berlin records.", precision: "city", source: "Curated" },
     ],
   },
-  "87aa6a6f-157f-4c0a-82c7-33a309b5a770": {
-    artist: { id: "87aa6a6f-157f-4c0a-82c7-33a309b5a770", name: "Björk", subtitle: "Icelandic composer, producer & vocalist", years: "1965—present", country: "Iceland" },
+  "87c5dedd-371d-4a53-9f7f-80522fb7f3cb": {
+    artist: { id: "87c5dedd-371d-4a53-9f7f-80522fb7f3cb", name: "Björk", subtitle: "Icelandic composer, producer & vocalist", years: "1965—present", country: "Iceland" },
     center: [-21.9426, 64.1466],
     nodes: [
       { id: "bjork", name: "Björk", type: "artist", coordinates: [-21.9426, 64.1466], year: 1965, location: "Reykjavík, Iceland", description: "A singular composer and producer connecting voice, technology, landscape and radical pop.", precision: "city", source: "Wikidata" },
@@ -108,8 +108,8 @@ const atlasData: Record<string, Atlas> = {
       { id: "cornucopia", name: "Cornucopia", type: "performance", coordinates: [-74.0059, 40.7128], year: 2019, endYear: 2023, location: "New York & international", description: "A theatrical concert work joining custom instruments, spatial sound and digital visuals.", precision: "city", source: "Curated" },
     ],
   },
-  "561d854a-6a28-4aa7-8c99-323e6ce46c2a": {
-    artist: { id: "561d854a-6a28-4aa7-8c99-323e6ce46c2a", name: "Kraftwerk", subtitle: "German electronic music pioneers", years: "1970—present", country: "Germany" },
+  "5700dcd4-c139-4f31-aa3e-6382b9af9032": {
+    artist: { id: "5700dcd4-c139-4f31-aa3e-6382b9af9032", name: "Kraftwerk", subtitle: "German electronic music pioneers", years: "1970—present", country: "Germany" },
     center: [6.7735, 51.2277],
     nodes: [
       { id: "kraftwerk", name: "Kraftwerk", type: "artist", coordinates: [6.7735, 51.2277], year: 1970, location: "Düsseldorf, Germany", description: "The Düsseldorf group whose precise electronic minimalism became a blueprint for modern music.", precision: "city", source: "Wikidata" },
@@ -120,8 +120,8 @@ const atlasData: Record<string, Atlas> = {
       { id: "moma", name: "Kraftwerk—Retrospective 1 2 3 4 5 6 7 8", type: "performance", coordinates: [-73.9776, 40.7614], year: 2012, location: "MoMA, New York", description: "Eight albums performed across eight nights in the museum atrium.", precision: "exact venue", source: "Curated" },
     ],
   },
-  "2f9ecbed-27be-40e6-abca-6de49d50299e": {
-    artist: { id: "2f9ecbed-27be-40e6-abca-6de49d50299e", name: "Miles Davis", subtitle: "American trumpeter, composer & bandleader", years: "1926—1991", country: "United States" },
+  "561d854a-6a28-4aa7-8c99-323e6ce46c2a": {
+    artist: { id: "561d854a-6a28-4aa7-8c99-323e6ce46c2a", name: "Miles Davis", subtitle: "American trumpeter, composer & bandleader", years: "1926—1991", country: "United States" },
     center: [-90.1506, 38.8906],
     nodes: [
       { id: "miles", name: "Miles Davis", type: "artist", coordinates: [-90.1506, 38.8906], year: 1926, endYear: 1991, location: "Alton, Illinois", description: "A defining modern musician who repeatedly changed the direction of jazz.", precision: "city", source: "Wikidata" },
@@ -132,8 +132,8 @@ const atlasData: Record<string, Atlas> = {
       { id: "newport", name: "Newport Jazz Festival", type: "performance", coordinates: [-71.3128, 41.4901], year: 1955, location: "Newport, Rhode Island", description: "A breakout performance that helped secure Davis’s Columbia contract.", precision: "exact venue", source: "Curated" },
     ],
   },
-  "e0140a67-e4d1-4f13-8a01-364355bee46e": {
-    artist: { id: "e0140a67-e4d1-4f13-8a01-364355bee46e", name: "Bad Bunny", subtitle: "Puerto Rican vocalist, rapper & producer", years: "1994—present", country: "Puerto Rico" },
+  "89aa5ecb-59ad-46f5-b3eb-2d424e941f19": {
+    artist: { id: "89aa5ecb-59ad-46f5-b3eb-2d424e941f19", name: "Bad Bunny", subtitle: "Puerto Rican vocalist, rapper & producer", years: "1994—present", country: "Puerto Rico" },
     center: [-66.486, 18.3985],
     nodes: [
       { id: "bunny", name: "Bad Bunny", type: "artist", coordinates: [-66.486, 18.3985], year: 1994, location: "Vega Baja, Puerto Rico", description: "A global pop force who keeps Puerto Rican identity at the center of his work.", precision: "city", source: "Wikidata" },
@@ -172,6 +172,21 @@ async function fetchWikipediaBio(title: string): Promise<WikipediaBio> {
   const summary = await response.json() as { title?: string; extract?: string; content_urls?: { desktop?: { page?: string } } };
   if (!summary.title || !summary.extract || !summary.content_urls?.desktop?.page) throw new Error("Wikipedia summary incomplete");
   return { title: summary.title, extract: summary.extract, url: summary.content_urls.desktop.page };
+}
+
+function normalizedArtistName(name: string) {
+  return name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+}
+
+function biographyExcerpt(extract: string, targetLength = 620) {
+  if (extract.length <= targetLength) return extract;
+  const sentences = new Intl.Segmenter("en", { granularity: "sentence" }).segment(extract);
+  let excerpt = "";
+  for (const sentence of sentences) {
+    if (excerpt && excerpt.length + sentence.segment.length > targetLength) break;
+    excerpt += sentence.segment;
+  }
+  return excerpt.trim() || extract;
 }
 
 function yearsFor(result: SearchResult) {
@@ -231,14 +246,17 @@ export default function Home() {
   const [previousArtistName, setPreviousArtistName] = useState<string | null>(null);
   const [biography, setBiography] = useState<WikipediaBio | null>(null);
   const [biographyLoading, setBiographyLoading] = useState(false);
+  const [biographyExpanded, setBiographyExpanded] = useState(false);
 
   const visibleNodes = useMemo(() => (atlas?.nodes ?? []).filter((node) => {
     const start = node.year ?? 1940;
     const end = node.endYear ?? node.year ?? 2026;
     return activeTypes.has(node.type) && end >= yearRange[0] && start <= yearRange[1];
   }), [atlas, activeTypes, yearRange]);
+  const collapsedBiography = useMemo(() => biography ? biographyExcerpt(biography.extract) : "", [biography]);
+  const biographyCanExpand = Boolean(biography && collapsedBiography.length < biography.extract.length);
 
-  const loadBiography = useCallback(async (artistId: string, suppliedRelations?: UrlRelation[], suppliedTitle?: string | null) => {
+  const loadBiography = useCallback(async (artistId: string, suppliedRelations?: UrlRelation[], suppliedTitle?: string | null, expectedName?: string) => {
     if (biographyCache.current.has(artistId)) {
       if (requestedBiographyArtistRef.current === artistId) {
         setBiography(biographyCache.current.get(artistId) ?? null);
@@ -252,7 +270,9 @@ export default function Home() {
       if (!relations) {
         const artistResponse = await fetch(`https://musicbrainz.org/ws/2/artist/${artistId}?inc=url-rels&fmt=json`, { headers: { Accept: "application/json" } });
         if (!artistResponse.ok) throw new Error("MusicBrainz links unavailable");
-        relations = ((await artistResponse.json()) as { relations?: UrlRelation[] }).relations ?? [];
+        const linkedArtist = await artistResponse.json() as { name?: string; relations?: UrlRelation[] };
+        if (expectedName && (!linkedArtist.name || normalizedArtistName(linkedArtist.name) !== normalizedArtistName(expectedName))) throw new Error("MusicBrainz identity did not match the curated artist");
+        relations = linkedArtist.relations ?? [];
       }
 
       let title = suppliedTitle || wikipediaTitleFromRelations(relations);
@@ -281,7 +301,7 @@ export default function Home() {
 
   const loadArtist = useCallback(async (result: SearchResult | { id: string; name: string }, navigate = true) => {
     requestedBiographyArtistRef.current = result.id;
-    setQuery(""); setResults([]); setDetail(null); setHoverCard(null); setBiography(null); setBiographyLoading(true); hoveredNodeRef.current = null; setLoadingStage("Locating artist…");
+    setQuery(""); setResults([]); setDetail(null); setHoverCard(null); setBiography(null); setBiographyLoading(true); setBiographyExpanded(false); hoveredNodeRef.current = null; setLoadingStage("Locating artist…");
     if (navigate) {
       const previousName = currentArtistRef.current?.name || null;
       setPreviousArtistName(previousName);
@@ -293,7 +313,7 @@ export default function Home() {
       currentArtistRef.current = curated.artist;
       setAtlas(curated);
       setLoadingStage(null);
-      void loadBiography(result.id);
+      void loadBiography(result.id, undefined, undefined, curated.artist.name);
       return;
     }
 
@@ -396,6 +416,7 @@ export default function Home() {
         setDetail(null);
         setBiography(null);
         setBiographyLoading(false);
+        setBiographyExpanded(false);
       }
     };
     window.addEventListener("popstate", onPopState);
@@ -595,9 +616,11 @@ export default function Home() {
     });
 
     await new Promise((resolve) => window.setTimeout(resolve, 1100));
-    const diagnosticArtistId = atlas?.artist.id || "1b4dd0d8-99d6-4e7c-a7b6-866f30c5c67d";
+    const diagnosticArtistId = atlas?.artist.id || "6514cffa-fbe0-4965-ad88-e998ead8a82a";
+    const diagnosticArtistName = atlas?.artist.name || "Fela Kuti";
     await runJsonCheck("mb-lookup", `https://musicbrainz.org/ws/2/artist/${diagnosticArtistId}?inc=url-rels+artist-rels+label-rels&fmt=json`, (data) => {
       if (!data.id || !data.name || !Array.isArray(data.relations)) throw new Error("Response was missing identity or relationship fields.");
+      if (normalizedArtistName(String(data.name)) !== normalizedArtistName(diagnosticArtistName)) throw new Error(`Identity mismatch: expected ${diagnosticArtistName}, received ${String(data.name)}.`);
       return `${String(data.name)} returned with ${(data.relations as unknown[]).length} relationships.`;
     });
 
@@ -659,6 +682,7 @@ export default function Home() {
     setDetail(null);
     setBiography(null);
     setBiographyLoading(false);
+    setBiographyExpanded(false);
     closeHoverCard();
   };
 
@@ -729,8 +753,11 @@ export default function Home() {
           {biography && (
             <section className="artist-biography" aria-label={`Wikipedia biography for ${atlas.artist.name}`}>
               <div className="biography-heading"><span>FROM WIKIPEDIA</span><a href={biography.url} target="_blank" rel="noreferrer">Read article ↗</a></div>
-              <p>{biography.extract}</p>
-              <div className="biography-license">Text from <a href={biography.url} target="_blank" rel="noreferrer">{biography.title}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA</a></div>
+              <p id="artist-biography-text" className={biographyExpanded ? "expanded" : ""}>{biographyExpanded ? biography.extract : collapsedBiography}</p>
+              <div className="biography-footer">
+                {biographyCanExpand && <button onClick={() => setBiographyExpanded((expanded) => !expanded)} aria-expanded={biographyExpanded} aria-controls="artist-biography-text">{biographyExpanded ? "Show less ↑" : "Show more ↓"}</button>}
+                <div className="biography-license">Text from <a href={biography.url} target="_blank" rel="noreferrer">{biography.title}</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA</a></div>
+              </div>
             </section>
           )}
           {!loadingStage && atlas.nodes.length === 0 && <div className="empty-state">This artist has too little mappable public data right now. Try one of the curated stories.</div>}

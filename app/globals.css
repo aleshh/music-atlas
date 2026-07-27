@@ -129,7 +129,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .artist-biography { margin: 20px 0 0 24px; padding-top: 16px; border-top: 1px solid var(--line); }
 .biography-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; color: #7c857f; font: 10px var(--font-geist-mono), monospace; letter-spacing: .11em; }
 .biography-heading a { color: #949d97; text-decoration: none; letter-spacing: 0; }
-.artist-biography > p { display: -webkit-box; margin: 12px 0 10px; overflow: hidden; color: #a8afa9; font-size: 12px; line-height: 1.58; -webkit-box-orient: vertical; -webkit-line-clamp: 5; }
+.artist-biography > p { margin: 12px 0 10px; color: #a8afa9; font-size: 12px; line-height: 1.58; }
+.artist-biography > p.expanded { display: block; max-height: min(38dvh, 420px); padding-right: 7px; overflow-y: auto; }
+.biography-footer { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; }
+.biography-footer > button { padding: 0; border: 0; background: transparent; color: var(--orange); font: 10px var(--font-geist-mono), monospace; letter-spacing: .05em; cursor: pointer; }
+.biography-footer > button:hover, .biography-footer > button:focus-visible { color: var(--ink); outline: none; text-decoration: underline; text-underline-offset: 3px; }
 .biography-license { color: #6f7972; font-size: 10px; line-height: 1.45; }
 .biography-license a { color: inherit; }
 .biography-heading a:hover, .biography-license a:hover { color: var(--orange); }
@@ -312,6 +316,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .statusbar span:nth-child(2) { display: none; }
   .statusbar { justify-content: space-between; }
   .artist-card { width: calc(100% - 28px); }
+  .artist-biography > p.expanded { max-height: none; overflow: visible; }
   .artist-title h1 { font-size: 34px; }
   .map-popover { display: none; }
   .modal-backdrop { padding: 0; place-items: stretch; }
