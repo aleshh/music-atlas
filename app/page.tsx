@@ -5,6 +5,7 @@ import type { Map as MapLibreMap } from "maplibre-gl";
 
 type EntityType = "artist" | "place" | "label" | "release" | "performance";
 type Precision = "exact venue" | "city" | "region" | "country" | "approximate" | "unknown";
+type AtlasSource = "MusicBrainz" | "Wikidata" | "Curated" | "Cover Art Archive";
 
 type AtlasNode = {
   id: string;
@@ -16,7 +17,18 @@ type AtlasNode = {
   location: string;
   description: string;
   precision: Precision;
-  source: "MusicBrainz" | "Wikidata" | "Curated" | "Cover Art Archive";
+  source: AtlasSource;
+  sourceUrl?: string;
+};
+
+type AtlasRecord = {
+  id: string;
+  name: string;
+  type: EntityType;
+  year?: number;
+  endYear?: number;
+  description: string;
+  source: AtlasSource;
   sourceUrl?: string;
 };
 
@@ -24,6 +36,7 @@ type Atlas = {
   artist: { id: string; name: string; subtitle: string; years: string; country: string };
   center: [number, number];
   nodes: AtlasNode[];
+  unmapped?: AtlasRecord[];
 };
 
 type SearchResult = {
@@ -55,6 +68,15 @@ type DiagnosticResult = {
 
 type WikipediaBio = { title: string; extract: string; url: string };
 type UrlRelation = { type?: string; url?: { resource?: string } };
+type MusicBrainzEvent = { id: string; name: string; type?: string; cancelled?: boolean; "life-span"?: { begin?: string; end?: string } };
+type MusicBrainzRelation = UrlRelation & {
+  begin?: string;
+  end?: string;
+  artist?: RelatedEntity;
+  label?: RelatedEntity;
+  place?: { id: string; name: string; address?: string; coordinates?: { latitude?: number; longitude?: number }; area?: { name?: string } };
+  event?: MusicBrainzEvent;
+};
 
 const typeMeta: Record<EntityType, { label: string; color: string }> = {
   artist: { label: "Artists", color: "#ff6b4a" },
@@ -144,13 +166,33 @@ const atlasData: Record<string, Atlas> = {
       { id: "mia", name: "Drake", type: "artist", coordinates: [-79.3832, 43.6532], year: 2018, location: "Toronto, Canada", description: "Collaborator on “MIA,” an early Spanish-language number-one crossover.", precision: "city", source: "Curated" },
     ],
   },
+  "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d": {
+    artist: { id: "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d", name: "The Beatles", subtitle: "English rock band and global pop phenomenon", years: "1960—1970", country: "United Kingdom" },
+    center: [-2.9916, 53.4084],
+    nodes: [
+      { id: "beatles", name: "The Beatles", type: "artist", coordinates: [-2.9916, 53.4084], year: 1960, endYear: 1970, location: "Liverpool, England", description: "The Liverpool group whose songwriting, recording, and cultural reach transformed popular music.", precision: "city", source: "MusicBrainz", sourceUrl: "https://musicbrainz.org/artist/b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d" },
+      { id: "beatles-liverpool", name: "Liverpool", type: "place", coordinates: [-2.9916, 53.4084], year: 1960, location: "Liverpool, England", description: "The band’s home city and the center of the Merseybeat scene from which they emerged.", precision: "city", source: "Curated" },
+      { id: "cavern-club", name: "The Cavern Club", type: "place", coordinates: [-2.9875, 53.4066], year: 1961, endYear: 1963, location: "Mathew Street, Liverpool", description: "The basement club where the Beatles built a fervent local following through nearly 300 appearances.", precision: "exact venue", source: "Curated" },
+      { id: "indra-club", name: "Indra Club", type: "place", coordinates: [9.9612, 53.5504], year: 1960, location: "St. Pauli, Hamburg", description: "The first Hamburg venue in the band’s formative run of demanding club residencies.", precision: "exact venue", source: "Curated" },
+      { id: "abbey-road-studios", name: "EMI Recording Studios", type: "place", coordinates: [-0.1783, 51.5319], year: 1962, endYear: 1969, location: "Abbey Road, London", description: "The principal studio where the Beatles and producer George Martin expanded the language of recorded pop.", precision: "exact venue", source: "Curated" },
+      { id: "parlophone-beatles", name: "Parlophone", type: "label", coordinates: [-0.1276, 51.5072], year: 1962, endYear: 1968, location: "London, England", description: "The EMI label that released the band’s defining British catalog under producer George Martin.", precision: "city", source: "MusicBrainz" },
+      { id: "apple-records", name: "Apple Records", type: "label", coordinates: [-0.139, 51.5101], year: 1968, location: "Savile Row, London", description: "The Beatles’ own label and part of the wider Apple Corps experiment.", precision: "exact venue", source: "Curated" },
+      { id: "please-please-me", name: "Please Please Me", type: "release", coordinates: [-0.1783, 51.5319], year: 1963, location: "EMI Recording Studios, London", description: "The debut album, largely captured during a famously concentrated studio session.", precision: "exact venue", source: "Curated" },
+      { id: "sgt-pepper", name: "Sgt. Pepper’s Lonely Hearts Club Band", type: "release", coordinates: [-0.1783, 51.5319], year: 1967, location: "EMI Recording Studios, London", description: "A studio-centered landmark that turned recording itself into a primary compositional tool.", precision: "exact venue", source: "Curated" },
+      { id: "abbey-road-album", name: "Abbey Road", type: "release", coordinates: [-0.1783, 51.5319], year: 1969, location: "EMI Recording Studios, London", description: "The final album recorded by the group, named for the street outside their principal studio.", precision: "exact venue", source: "Curated" },
+      { id: "ed-sullivan", name: "The Ed Sullivan Show", type: "performance", coordinates: [-73.9833, 40.7637], year: 1964, location: "New York, USA", description: "The live American television appearance that became a defining image of Beatlemania.", precision: "exact venue", source: "Curated" },
+      { id: "shea-stadium", name: "Shea Stadium", type: "performance", coordinates: [-73.8458, 40.7559], year: 1965, location: "Queens, New York", description: "A landmark stadium concert before more than 55,000 people at the height of Beatlemania.", precision: "exact venue", source: "Curated" },
+      { id: "candlestick-park", name: "Candlestick Park", type: "performance", coordinates: [-122.386, 37.7136], year: 1966, location: "San Francisco, USA", description: "The final full concert of the Beatles’ touring years.", precision: "exact venue", source: "Curated" },
+    ],
+  },
 };
 
 const suggested = Object.values(atlasData).map((atlas) => atlas.artist);
 
 const initialDiagnostics: DiagnosticResult[] = [
   { id: "mb-search", name: "Artist search", provider: "MusicBrainz", endpoint: "/ws/2/artist?query=artist:Autechre&fmt=json&limit=1", status: "idle", summary: "Checks search results and canonical artist IDs." },
-  { id: "mb-lookup", name: "Artist relationships", provider: "MusicBrainz", endpoint: "/ws/2/artist/{MBID}?inc=url-rels+artist-rels+label-rels&fmt=json", status: "idle", summary: "Checks artist identity, areas, dates, and relationship arrays." },
+  { id: "mb-lookup", name: "Artist relationships", provider: "MusicBrainz", endpoint: "/ws/2/artist/{MBID}?inc=url-rels+artist-rels+label-rels+place-rels+event-rels", status: "idle", summary: "Checks artist identity, areas, dates, and relationship arrays." },
+  { id: "mb-releases", name: "Releases and labels", provider: "MusicBrainz", endpoint: "/ws/2/release?artist={MBID}&inc=labels+release-groups&limit=20", status: "idle", summary: "Checks the bounded release browse used for non-geographic records." },
   { id: "wikidata", name: "Geographic claims", provider: "Wikidata", endpoint: "/w/api.php?action=wbgetentities&ids=Q60&props=claims|labels", status: "idle", summary: "Checks entity labels and P625 coordinate claims." },
   { id: "wikipedia", name: "Artist biography", provider: "Wikipedia", endpoint: "/api/rest_v1/page/summary/Fela_Kuti", status: "idle", summary: "Checks a linked article summary and canonical page URL." },
   { id: "map", name: "Basemap style", provider: "OpenFreeMap", endpoint: "/styles/bright", status: "idle", summary: "Checks that the map style and its layer definitions are readable." },
@@ -216,6 +258,75 @@ function countryNode(entity: RelatedEntity, type: "artist" | "label", descriptio
   };
 }
 
+function yearFromDate(value?: string) {
+  const year = Number(value?.slice(0, 4));
+  return Number.isFinite(year) && year > 0 ? year : undefined;
+}
+
+function placeNode(relation: MusicBrainzRelation, artistName: string): AtlasNode | null {
+  const place = relation.place;
+  const latitude = place?.coordinates?.latitude;
+  const longitude = place?.coordinates?.longitude;
+  if (!place || typeof latitude !== "number" || typeof longitude !== "number") return null;
+  return {
+    id: place.id,
+    name: place.name,
+    type: "place",
+    coordinates: [longitude, latitude],
+    year: yearFromDate(relation.begin),
+    endYear: yearFromDate(relation.end),
+    location: [place.address, place.area?.name].filter(Boolean).join(" · ") || place.name,
+    description: `${relation.type || "Place"} relationship with ${artistName}.`,
+    precision: "exact venue",
+    source: "MusicBrainz",
+    sourceUrl: `https://musicbrainz.org/place/${place.id}`,
+  };
+}
+
+function eventRecord(event: MusicBrainzEvent): AtlasRecord {
+  return {
+    id: event.id,
+    name: event.name,
+    type: "performance",
+    year: yearFromDate(event["life-span"]?.begin),
+    endYear: yearFromDate(event["life-span"]?.end),
+    description: `${event.type || "Event"} linked to this artist; no source-backed venue coordinate has loaded yet.`,
+    source: "MusicBrainz",
+    sourceUrl: `https://musicbrainz.org/event/${event.id}`,
+  };
+}
+
+function mergeRecords(current: AtlasRecord[] = [], incoming: AtlasRecord[]) {
+  const records = new Map(current.map((record) => [`${record.type}:${record.id}`, record]));
+  incoming.forEach((record) => records.set(`${record.type}:${record.id}`, record));
+  return [...records.values()];
+}
+
+function recordInYearRange(record: Pick<AtlasRecord, "year" | "endYear">, range: [number, number]) {
+  const start = record.year ?? 1940;
+  const end = record.endYear ?? record.year ?? 2026;
+  return end >= range[0] && start <= range[1];
+}
+
+function waitForMusicBrainz() {
+  return new Promise((resolve) => window.setTimeout(resolve, 1100));
+}
+
+function atlasPointFeatures(nodes: AtlasNode[]) {
+  const coordinateCounts = new Map<string, number>();
+  const labeledCoordinates = new Set<string>();
+  nodes.forEach((node) => {
+    const key = node.coordinates.join(",");
+    coordinateCounts.set(key, (coordinateCounts.get(key) ?? 0) + 1);
+  });
+  return nodes.map((node) => {
+    const key = node.coordinates.join(",");
+    const stackCount = labeledCoordinates.has(key) ? 1 : coordinateCounts.get(key) ?? 1;
+    labeledCoordinates.add(key);
+    return { type: "Feature" as const, properties: { id: node.id, type: node.type, stackCount }, geometry: { type: "Point" as const, coordinates: node.coordinates } };
+  });
+}
+
 export default function Home() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -247,12 +358,12 @@ export default function Home() {
   const [biography, setBiography] = useState<WikipediaBio | null>(null);
   const [biographyLoading, setBiographyLoading] = useState(false);
   const [biographyExpanded, setBiographyExpanded] = useState(false);
+  const [unmappedExpanded, setUnmappedExpanded] = useState(false);
 
-  const visibleNodes = useMemo(() => (atlas?.nodes ?? []).filter((node) => {
-    const start = node.year ?? 1940;
-    const end = node.endYear ?? node.year ?? 2026;
-    return activeTypes.has(node.type) && end >= yearRange[0] && start <= yearRange[1];
-  }), [atlas, activeTypes, yearRange]);
+  const timelineNodes = useMemo(() => (atlas?.nodes ?? []).filter((node) => recordInYearRange(node, yearRange)), [atlas, yearRange]);
+  const timelineUnmapped = useMemo(() => (atlas?.unmapped ?? []).filter((record) => recordInYearRange(record, yearRange)), [atlas, yearRange]);
+  const visibleNodes = useMemo(() => timelineNodes.filter((node) => activeTypes.has(node.type)), [timelineNodes, activeTypes]);
+  const visibleUnmapped = useMemo(() => timelineUnmapped.filter((record) => activeTypes.has(record.type)), [timelineUnmapped, activeTypes]);
   const collapsedBiography = useMemo(() => biography ? biographyExcerpt(biography.extract) : "", [biography]);
   const biographyCanExpand = Boolean(biography && collapsedBiography.length < biography.extract.length);
 
@@ -299,9 +410,108 @@ export default function Home() {
     }
   }, []);
 
+  const enrichLiveAtlas = useCallback(async (artistId: string, events: MusicBrainzEvent[]) => {
+    const stillCurrent = () => requestedBiographyArtistRef.current === artistId;
+    const updateCurrentAtlas = (update: (current: Atlas) => Atlas) => {
+      if (!stillCurrent()) return;
+      setAtlas((current) => current?.artist.id === artistId ? update(current) : current);
+    };
+
+    try {
+      await waitForMusicBrainz();
+      if (!stillCurrent()) return;
+      setLoadingStage("Loading releases and labels…");
+      try {
+        const releaseResponse = await fetch(`https://musicbrainz.org/ws/2/release?artist=${artistId}&inc=labels+release-groups&status=official&limit=20&fmt=json`, { headers: { Accept: "application/json" } });
+        if (releaseResponse.ok) {
+          const payload = await releaseResponse.json() as {
+            releases?: Array<{
+              id: string;
+              title: string;
+              date?: string;
+              country?: string;
+              "release-group"?: { id: string; title: string; "first-release-date"?: string; "primary-type"?: string };
+              "label-info"?: Array<{ label?: { id: string; name: string } }>;
+            }>;
+          };
+          const releaseGroups = new Map<string, AtlasRecord>();
+          const labels = new Map<string, AtlasRecord>();
+          for (const release of payload.releases ?? []) {
+            const group = release["release-group"];
+            const groupId = group?.id || release.id;
+            if (!releaseGroups.has(groupId) && releaseGroups.size < 8) {
+              releaseGroups.set(groupId, {
+                id: groupId,
+                name: group?.title || release.title,
+                type: "release",
+                year: yearFromDate(group?.["first-release-date"] || release.date),
+                description: `${group?.["primary-type"] || "Release"} loaded from MusicBrainz. It is listed here because no source-backed recording location was returned.`,
+                source: "MusicBrainz",
+                sourceUrl: `https://musicbrainz.org/${group ? "release-group" : "release"}/${groupId}`,
+              });
+            }
+            for (const info of release["label-info"] ?? []) {
+              const label = info.label;
+              if (label && !labels.has(label.id) && labels.size < 6) {
+                labels.set(label.id, {
+                  id: label.id,
+                  name: label.name,
+                  type: "label",
+                  year: yearFromDate(release.date),
+                  description: `Label credit on an official MusicBrainz release; no reliable label-office coordinate was returned.`,
+                  source: "MusicBrainz",
+                  sourceUrl: `https://musicbrainz.org/label/${label.id}`,
+                });
+              }
+            }
+          }
+          updateCurrentAtlas((current) => ({ ...current, unmapped: mergeRecords(current.unmapped, [...releaseGroups.values(), ...labels.values()]) }));
+        }
+      } catch { /* Releases are an independent optional layer. */ }
+
+      const eventSubset = events.slice(0, 3);
+      for (let index = 0; index < eventSubset.length; index += 1) {
+        await waitForMusicBrainz();
+        if (!stillCurrent()) return;
+        setLoadingStage(`Resolving performance ${index + 1} of ${eventSubset.length}…`);
+        const event = eventSubset[index];
+        try {
+          const eventResponse = await fetch(`https://musicbrainz.org/ws/2/event/${event.id}?inc=place-rels&fmt=json`, { headers: { Accept: "application/json" } });
+          if (!eventResponse.ok) continue;
+          const eventDetail = await eventResponse.json() as MusicBrainzEvent & { relations?: MusicBrainzRelation[] };
+          const heldAt = eventDetail.relations?.find((relation) => relation.place?.coordinates);
+          const place = heldAt?.place;
+          const latitude = place?.coordinates?.latitude;
+          const longitude = place?.coordinates?.longitude;
+          if (!place || typeof latitude !== "number" || typeof longitude !== "number") continue;
+          const node: AtlasNode = {
+            id: event.id,
+            name: eventDetail.name || event.name,
+            type: "performance",
+            coordinates: [longitude, latitude],
+            year: yearFromDate(eventDetail["life-span"]?.begin),
+            endYear: yearFromDate(eventDetail["life-span"]?.end),
+            location: [place.name, place.area?.name].filter(Boolean).join(" · "),
+            description: `${eventDetail.type || "Performance"} linked to this artist and held at ${place.name}.`,
+            precision: "exact venue",
+            source: "MusicBrainz",
+            sourceUrl: `https://musicbrainz.org/event/${event.id}`,
+          };
+          updateCurrentAtlas((current) => ({
+            ...current,
+            nodes: [...current.nodes.filter((item) => !(item.type === "performance" && item.id === node.id)), node],
+            unmapped: current.unmapped?.filter((record) => !(record.type === "performance" && record.id === node.id)),
+          }));
+        } catch { /* A missing venue removes only this performance point. */ }
+      }
+    } finally {
+      if (stillCurrent()) setLoadingStage(null);
+    }
+  }, []);
+
   const loadArtist = useCallback(async (result: SearchResult | { id: string; name: string }, navigate = true) => {
     requestedBiographyArtistRef.current = result.id;
-    setQuery(""); setResults([]); setDetail(null); setHoverCard(null); setBiography(null); setBiographyLoading(true); setBiographyExpanded(false); hoveredNodeRef.current = null; setLoadingStage("Locating artist…");
+    setQuery(""); setResults([]); setDetail(null); setHoverCard(null); setBiography(null); setBiographyLoading(true); setBiographyExpanded(false); setUnmappedExpanded(false); hoveredNodeRef.current = null; setLoadingStage("Locating artist…");
     if (navigate) {
       const previousName = currentArtistRef.current?.name || null;
       setPreviousArtistName(previousName);
@@ -318,19 +528,20 @@ export default function Home() {
     }
 
     try {
-      const baseUrl = `https://musicbrainz.org/ws/2/artist/${result.id}?inc=url-rels+artist-rels+label-rels&fmt=json`;
+      const baseUrl = `https://musicbrainz.org/ws/2/artist/${result.id}?inc=url-rels+artist-rels+label-rels+place-rels+event-rels&fmt=json`;
       const artistResponse = await fetch(baseUrl, { headers: { Accept: "application/json" } });
       if (!artistResponse.ok) throw new Error("Artist lookup failed");
       const artist = await artistResponse.json();
+      const relations = (artist.relations ?? []) as MusicBrainzRelation[];
       const country = artist.country || artist.area?.["iso-3166-1-codes"]?.[0] || "";
       let center = countryCenters[country] || [0, 20] as [number, number];
       let hasGeographicLocation = Boolean(countryCenters[country]);
       let locationSource: AtlasNode["source"] = "MusicBrainz";
       let locationName = artist.area?.name || artist["begin-area"]?.name || artist.country || "Approximate location";
-      let wikipediaTitle: string | null = wikipediaTitleFromRelations(artist.relations as UrlRelation[] | undefined);
+      let wikipediaTitle: string | null = wikipediaTitleFromRelations(relations);
 
       setLoadingStage("Resolving places…");
-      const wikidataRelation = artist.relations?.find((relation: { type?: string; url?: { resource?: string } }) => relation.type === "wikidata");
+      const wikidataRelation = relations.find((relation) => relation.type === "wikidata");
       const qid = wikidataRelation?.url?.resource?.match(/Q\d+/)?.[0];
       if (qid) {
         try {
@@ -369,24 +580,36 @@ export default function Home() {
         sourceUrl: `https://musicbrainz.org/artist/${artist.id}`,
       };
       const nodes: AtlasNode[] = hasGeographicLocation ? [primaryNode] : [];
+      const unmapped: AtlasRecord[] = [];
 
-      (artist.relations || []).filter((relation: { artist?: unknown }) => relation.artist).slice(0, 7).forEach((relation: { artist: RelatedEntity; type?: string }) => {
-        const node = countryNode(relation.artist, "artist", `${relation.type || "Artist"} relationship with ${artist.name}. Select this artist to explore further.`);
-        if (node) nodes.push(node);
+      relations.filter((relation) => relation.artist).slice(0, 7).forEach((relation) => {
+        const relatedArtist = relation.artist as RelatedEntity;
+        const description = `${relation.type || "Artist"} relationship with ${artist.name}. Select this artist to explore further.`;
+        const node = countryNode(relatedArtist, "artist", description);
+        if (node) nodes.push(node); else unmapped.push({ id: relatedArtist.id, name: relatedArtist.name, type: "artist", year: yearFromDate(relation.begin), endYear: yearFromDate(relation.end), description: `${description} No usable geographic area was returned.`, source: "MusicBrainz", sourceUrl: `https://musicbrainz.org/artist/${relatedArtist.id}` });
       });
-      (artist.relations || []).filter((relation: { label?: unknown }) => relation.label).slice(0, 5).forEach((relation: { label: RelatedEntity; type?: string }) => {
-        const node = countryNode(relation.label, "label", `${relation.type || "Label"} connection listed by MusicBrainz.`);
-        if (node) nodes.push(node);
+      relations.filter((relation) => relation.label).slice(0, 5).forEach((relation) => {
+        const label = relation.label as RelatedEntity;
+        const description = `${relation.type || "Label"} connection listed by MusicBrainz.`;
+        const node = countryNode(label, "label", description);
+        if (node) nodes.push(node); else unmapped.push({ id: label.id, name: label.name, type: "label", year: yearFromDate(relation.begin), endYear: yearFromDate(relation.end), description: `${description} No reliable office coordinate was returned.`, source: "MusicBrainz", sourceUrl: `https://musicbrainz.org/label/${label.id}` });
       });
+      relations.filter((relation) => relation.place).slice(0, 5).forEach((relation) => {
+        const node = placeNode(relation, artist.name);
+        if (node) nodes.push(node); else if (relation.place) unmapped.push({ id: relation.place.id, name: relation.place.name, type: "place", year: yearFromDate(relation.begin), endYear: yearFromDate(relation.end), description: `${relation.type || "Place"} relationship with ${artist.name}; MusicBrainz returned no coordinates.`, source: "MusicBrainz", sourceUrl: `https://musicbrainz.org/place/${relation.place.id}` });
+      });
+      const relatedEvents = relations.filter((relation) => relation.event).map((relation) => relation.event as MusicBrainzEvent).slice(0, 6);
+      unmapped.push(...relatedEvents.map(eventRecord));
 
       const nextAtlas: Atlas = {
         artist: { id: artist.id, name: artist.name, subtitle: artist.disambiguation || `${artist.type || "Artist"} from ${locationName}`, years: yearsFor(artist), country: artist.country || artist.area?.name || "Unknown area" },
-        center, nodes,
+        center, nodes, unmapped: mergeRecords([], unmapped),
       };
       currentArtistRef.current = nextAtlas.artist;
       setAtlas(nextAtlas);
-      setLoadingStage(null);
-      void loadBiography(artist.id, artist.relations as UrlRelation[] | undefined, wikipediaTitle);
+      setLoadingStage("Loading releases and performances…");
+      void loadBiography(artist.id, relations, wikipediaTitle);
+      void enrichLiveAtlas(artist.id, relatedEvents);
     } catch {
       setLoadingStage(null);
       const fallbackAtlas: Atlas = {
@@ -398,7 +621,7 @@ export default function Home() {
       setAtlas(fallbackAtlas);
       setBiographyLoading(false);
     }
-  }, [loadBiography]);
+  }, [enrichLiveAtlas, loadBiography]);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("artist");
@@ -417,6 +640,7 @@ export default function Home() {
         setBiography(null);
         setBiographyLoading(false);
         setBiographyExpanded(false);
+        setUnmappedExpanded(false);
       }
     };
     window.addEventListener("popstate", onPopState);
@@ -454,13 +678,14 @@ export default function Home() {
       map.on("style.load", () => {
         const atlasMap = map as AtlasMap;
         const nodes = atlasMap.__atlasNodes ?? [];
-        const features = nodes.map((node) => ({ type: "Feature" as const, properties: { id: node.id, type: node.type }, geometry: { type: "Point" as const, coordinates: node.coordinates } }));
+        const features = atlasPointFeatures(nodes);
         const lines = atlasMap.__atlasAnchor ? nodes.slice(1).map((node) => ({ type: "Feature" as const, properties: {}, geometry: { type: "LineString" as const, coordinates: [atlasMap.__atlasAnchor as [number, number], node.coordinates] } })) : [];
         map.addSource("atlas-lines", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         map.addSource("atlas-points", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         map.addLayer({ id: "atlas-lines", type: "line", source: "atlas-lines", paint: { "line-color": "#ff6b4a", "line-width": 1.2, "line-opacity": 0.52, "line-dasharray": [2, 2] } });
         map.addLayer({ id: "atlas-halo", type: "circle", source: "atlas-points", paint: { "circle-radius": 13, "circle-color": ["match", ["get", "type"], "artist", "#ff6b4a", "place", "#ffd166", "label", "#9c8cff", "release", "#58d6b3", "#6bb7ff"], "circle-opacity": 0.12 } });
-        map.addLayer({ id: "atlas-points", type: "circle", source: "atlas-points", paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 1, 4, 6, 8], "circle-color": ["match", ["get", "type"], "artist", "#ff6b4a", "place", "#ffd166", "label", "#9c8cff", "release", "#58d6b3", "#6bb7ff"], "circle-stroke-color": atlasMap.__theme === "light" ? "#f4f0e7" : "#131816", "circle-stroke-width": 2 } });
+        map.addLayer({ id: "atlas-points", type: "circle", source: "atlas-points", paint: { "circle-radius": ["case", [">", ["get", "stackCount"], 1], ["interpolate", ["linear"], ["zoom"], 1, 9, 6, 13], ["interpolate", ["linear"], ["zoom"], 1, 4, 6, 8]], "circle-color": ["match", ["get", "type"], "artist", "#ff6b4a", "place", "#ffd166", "label", "#9c8cff", "release", "#58d6b3", "#6bb7ff"], "circle-stroke-color": atlasMap.__theme === "light" ? "#f4f0e7" : "#131816", "circle-stroke-width": 2 } });
+        map.addLayer({ id: "atlas-stack-counts", type: "symbol", source: "atlas-points", filter: [">", ["get", "stackCount"], 1], layout: { "text-field": ["to-string", ["get", "stackCount"]], "text-size": 10, "text-allow-overlap": true, "text-ignore-placement": true }, paint: { "text-color": "#ffffff", "text-halo-color": "rgba(0,0,0,.28)", "text-halo-width": 1 } });
         (map.getSource("atlas-points") as { setData: (data: object) => void }).setData({ type: "FeatureCollection", features });
         (map.getSource("atlas-lines") as { setData: (data: object) => void }).setData({ type: "FeatureCollection", features: lines });
       });
@@ -505,7 +730,7 @@ export default function Home() {
     const update = () => {
       map.__atlasNodes = visibleNodes;
       map.__atlasAnchor = atlas?.nodes[0]?.coordinates;
-      const features = visibleNodes.map((node) => ({ type: "Feature" as const, properties: { id: node.id, type: node.type }, geometry: { type: "Point" as const, coordinates: node.coordinates } }));
+      const features = atlasPointFeatures(visibleNodes);
       const anchor = atlas?.nodes[0]?.coordinates;
       const lines = anchor ? visibleNodes.slice(1).map((node) => ({ type: "Feature" as const, properties: {}, geometry: { type: "LineString" as const, coordinates: [anchor, node.coordinates] } })) : [];
       (map.getSource("atlas-points") as { setData: (data: object) => void } | undefined)?.setData({ type: "FeatureCollection", features });
@@ -618,10 +843,17 @@ export default function Home() {
     await new Promise((resolve) => window.setTimeout(resolve, 1100));
     const diagnosticArtistId = atlas?.artist.id || "6514cffa-fbe0-4965-ad88-e998ead8a82a";
     const diagnosticArtistName = atlas?.artist.name || "Fela Kuti";
-    await runJsonCheck("mb-lookup", `https://musicbrainz.org/ws/2/artist/${diagnosticArtistId}?inc=url-rels+artist-rels+label-rels&fmt=json`, (data) => {
+    await runJsonCheck("mb-lookup", `https://musicbrainz.org/ws/2/artist/${diagnosticArtistId}?inc=url-rels+artist-rels+label-rels+place-rels+event-rels&fmt=json`, (data) => {
       if (!data.id || !data.name || !Array.isArray(data.relations)) throw new Error("Response was missing identity or relationship fields.");
       if (normalizedArtistName(String(data.name)) !== normalizedArtistName(diagnosticArtistName)) throw new Error(`Identity mismatch: expected ${diagnosticArtistName}, received ${String(data.name)}.`);
       return `${String(data.name)} returned with ${(data.relations as unknown[]).length} relationships.`;
+    });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 1100));
+    await runJsonCheck("mb-releases", `https://musicbrainz.org/ws/2/release?artist=${diagnosticArtistId}&inc=labels+release-groups&status=official&limit=5&fmt=json`, (data) => {
+      const releases = data.releases as Array<{ id?: string; title?: string }> | undefined;
+      if (!Array.isArray(releases)) throw new Error("Response was missing the release list.");
+      return `${releases.length} bounded release records returned for enrichment.`;
     });
 
     await runJsonCheck("wikidata", "https://www.wikidata.org/w/api.php?action=wbgetentities&ids=Q60&props=claims%7Clabels&languages=en&origin=*&format=json", (data) => {
@@ -683,6 +915,7 @@ export default function Home() {
     setBiography(null);
     setBiographyLoading(false);
     setBiographyExpanded(false);
+    setUnmappedExpanded(false);
     closeHoverCard();
   };
 
@@ -747,7 +980,7 @@ export default function Home() {
           <button className="back" onClick={() => { window.history.back(); }}>← <span>{previousArtistName ? `Back to ${previousArtistName}` : "Back to atlas"}</span></button>
           <div className="artist-title"><div className="title-pulse" /><div><p>EXPLORING</p><h1>{atlas.artist.name}</h1></div></div>
           <p className="artist-subtitle">{atlas.artist.subtitle}</p>
-          <div className="artist-facts"><span>{atlas.artist.country}</span><span>{atlas.artist.years}</span><span>{visibleNodes.length} connections</span></div>
+          <div className="artist-facts"><span>{atlas.artist.country}</span><span>{atlas.artist.years}</span><span>{timelineNodes.length}/{timelineNodes.length + timelineUnmapped.length} mapped</span></div>
           {loadingStage && <div className="progressive"><span className="search-spinner" /> {loadingStage}</div>}
           {biographyLoading && !loadingStage && <div className="biography-loading"><span className="search-spinner" /> Finding linked Wikipedia biography…</div>}
           {biography && (
@@ -760,20 +993,42 @@ export default function Home() {
               </div>
             </section>
           )}
-          {!loadingStage && atlas.nodes.length === 0 && <div className="empty-state">This artist has too little mappable public data right now. Try one of the curated stories.</div>}
+          {timelineUnmapped.length > 0 && (
+            <section className="unmapped-data">
+              <button className="unmapped-toggle" onClick={() => setUnmappedExpanded((expanded) => !expanded)} aria-expanded={unmappedExpanded} aria-controls="unmapped-records">
+                <span><small>LOADED, NOT MAPPED</small><strong>{timelineUnmapped.length} records without coordinates</strong></span><span>{unmappedExpanded ? "↑" : "↓"}</span>
+              </button>
+              {unmappedExpanded && (
+                <div id="unmapped-records" className="unmapped-records">
+                  <p>These records remain off the map because the source did not provide a defensible coordinate.</p>
+                  {(Object.entries(typeMeta) as [EntityType, { label: string; color: string }][]).map(([type, meta]) => {
+                    const records = visibleUnmapped.filter((record) => record.type === type).slice(0, 6);
+                    if (records.length === 0) return null;
+                    return <div className="unmapped-group" key={type}><h3><span style={{ background: meta.color }} />{meta.label}</h3>{records.map((record) => <a key={`${record.type}:${record.id}`} href={record.sourceUrl} target="_blank" rel="noreferrer"><span>{record.name}</span><small>{record.year || "Date unknown"} · {record.source} ↗</small></a>)}</div>;
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+          {!loadingStage && atlas.nodes.length === 0 && timelineUnmapped.length > 0 && <div className="empty-state">No source-backed map coordinates were available. Related records are listed above instead of being placed approximately.</div>}
+          {!loadingStage && atlas.nodes.length === 0 && timelineUnmapped.length === 0 && <div className="empty-state">This artist has too little mappable public data right now. Try one of the curated stories.</div>}
         </section>
       )}
 
       <aside className={`layers-panel ${mobileFilters ? "open" : ""}`}>
         <div className="panel-heading"><span>MAP LAYERS</span><button onClick={() => setMobileFilters(false)}>×</button></div>
-        {(Object.entries(typeMeta) as [EntityType, { label: string; color: string }][]).map(([type, meta]) => (
-          <button key={type} className={activeTypes.has(type) ? "active" : ""} onClick={() => toggleType(type)}>
+        {(Object.entries(typeMeta) as [EntityType, { label: string; color: string }][]).map(([type, meta]) => {
+          const mappedCount = timelineNodes.filter((node) => node.type === type).length;
+          const totalCount = mappedCount + timelineUnmapped.filter((record) => record.type === type).length;
+          return <button key={type} className={activeTypes.has(type) ? "active" : ""} onClick={() => toggleType(type)}>
             <span className="layer-dot" style={{ "--dot": meta.color } as React.CSSProperties} />
-            <span>{meta.label}</span><small>{atlas?.nodes.filter((node) => node.type === type).length || 0}</small>
+            <span>{meta.label}</span><small title={`${mappedCount} mapped of ${totalCount} loaded`}>{mappedCount}/{totalCount}</small>
             <span className="check">{activeTypes.has(type) ? "✓" : ""}</span>
-          </button>
-        ))}
+          </button>;
+        })}
         <div className="source-key"><span>◒</span><p><strong>DATA LAYERS</strong> Live + curated sources</p></div>
+        <div className="stack-key"><span>3</span><p>Numbered dots contain overlapping records</p></div>
+        <div className="unmapped-key"><span>4/10</span><p>Mapped records / total loaded</p></div>
       </aside>
 
       {hoverCard && (
@@ -850,14 +1105,14 @@ export default function Home() {
                 </section>
                 <section className="data-section">
                   <div className="section-heading"><span>DATA PROVENANCE</span><span>EXACT CURRENT USAGE</span></div>
-                  <article className="source-card live"><div className="source-number">01</div><div><h4>MusicBrainz <span>LIVE API</span></h4><p>Artist search supplies names, types, areas, active dates, and disambiguation. Artist lookup supplies canonical MBIDs, area/country, life span, artist and label relationships, external URLs, and the Wikidata link.</p><code>musicbrainz.org/ws/2/artist</code></div></article>
+                  <article className="source-card live"><div className="source-number">01</div><div><h4>MusicBrainz <span>LIVE API</span></h4><p>Artist search supplies identity and disambiguation. A bounded enrichment pass loads artist, label, place, and event relationships; up to 20 official releases provide a small set of release groups and label credits; and at most three events are followed to resolve venue coordinates.</p><code>musicbrainz.org/ws/2/artist · release · event</code></div></article>
                   <article className="source-card live"><div className="source-number">02</div><div><h4>Wikidata <span>LIVE API</span></h4><p>Only queried when MusicBrainz links an artist to Wikidata. The app reads P625 coordinates; when needed, it follows P19 birthplace to retrieve that place’s English label and coordinates. It does not run broad SPARQL queries.</p><code>wikidata.org/w/api.php · wbgetentities</code></div></article>
                   <article className="source-card live wikipedia-source"><div className="source-number">03</div><div><h4>Wikipedia <span>LIVE API</span></h4><p>When MusicBrainz or Wikidata links an English Wikipedia article, the app requests its plain-text lead summary and canonical article URL. The biography loads independently and is attributed under CC BY-SA.</p><code>en.wikipedia.org/api/rest_v1/page/summary</code></div></article>
                   <article className="source-card map-source"><div className="source-number">04</div><div><h4>OpenFreeMap <span>LIVE TILES</span></h4><p>Provides the light and dark MapLibre style documents and basemap tiles. It contributes geography and place labels, but no artist or music facts.</p><code>tiles.openfreemap.org/styles/bright|dark</code></div></article>
-                  <article className="source-card curated-source"><div className="source-number">05</div><div><h4>Curated Atlas <span>BUNDLED DATA</span></h4><p>Supplies the six featured artist stories, editorial descriptions, selected studios and venues, notable performances, releases, and corrected coordinates. These facts are marked “Curated” in detail panels.</p><code>{Object.keys(atlasData).length} artists · {Object.values(atlasData).flatMap((item) => item.nodes).length} mapped entities</code></div></article>
+                  <article className="source-card curated-source"><div className="source-number">05</div><div><h4>Curated Atlas <span>BUNDLED DATA</span></h4><p>Supplies the featured artist stories, editorial descriptions, selected studios and venues, notable performances, releases, and corrected coordinates. These facts are marked “Curated” in detail panels.</p><code>{Object.keys(atlasData).length} artists · {Object.values(atlasData).flatMap((item) => item.nodes).length} mapped entities</code></div></article>
                   <article className="source-card inactive"><div className="source-number">06</div><div><h4>Cover Art Archive <span>NOT CURRENTLY CALLED</span></h4><p>The architecture allows release artwork later, but this build does not request Cover Art Archive images or plot MusicBrainz releases without geographic evidence.</p><code>No browser request in the current build</code></div></article>
                 </section>
-                <aside className="precision-note"><strong>How locations are interpreted</strong><p>Wikidata coordinates are shown as source-backed points. MusicBrainz country-only areas are shown at country level. Entities without usable coordinates are omitted—Music Atlas does not invent or scatter locations.</p></aside>
+                <aside className="precision-note"><strong>How locations are interpreted</strong><p>Wikidata and MusicBrainz venue coordinates are shown as source-backed points. MusicBrainz country-only areas are visibly marked at country precision. Releases, labels, events, and other entities without defensible coordinates remain available in “Loaded, not mapped” instead of being invented or scattered.</p></aside>
                 <button className="open-diagnostics" onClick={() => setModalTab("diagnostics")}>Run source diagnostics <span>→</span></button>
               </div>
             ) : (
